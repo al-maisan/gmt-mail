@@ -32,9 +32,19 @@ SIGNING_KEY ?= $(shell git config user.signingkey)
 # Official Go toolchain of the release builds, so anyone can rebuild the same
 # archives. Bump it with Go patch releases.
 RELEASE_GO ?= go1.26.10
-# Checks the tag (scripts/release-check.sh), runs lint and test, then builds and
-# signs the archives.
-RELEASE_DIST = scripts/release-check.sh $(TAG) && $(MAKE) --no-print-directory lint test dist
+# A stable version (X.Y.Z) also gets .deb packages and the container image.
+STABLE := $(shell echo '$(VERSION)' | grep -xE '[0-9]+\.[0-9]+\.[0-9]+')
+# Container image of the archives in DIST_DIR, as an OCI layout.
+IMAGE_DIR := $(DIST_DIR)/image
+# Checks the tag (scripts/release-check.sh) and, for a stable version, the
+# ghcr.io login; runs lint and test, then builds and signs the archives and, for
+# a stable version, builds the image from them.
+RELEASE_DIST = scripts/release-check.sh $(TAG) \
+	$(if $(STABLE),&& bash -c 'source scripts/release-lib.sh && ghcr_login >/dev/null') \
+	&& $(MAKE) --no-print-directory lint test dist $(if $(STABLE),image)
+# After the GitHub release: a stable version's image goes to ghcr.io.
+IMAGE := ghcr.io/al-maisan/gmt-mail
+RELEASE_PUSH = $(if $(STABLE),&& $(MAKE) --no-print-directory push-image)
 # Prereleases (vX.Y.Z-PRE) are marked as such on GitHub.
 RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
 	--notes "Built with $(RELEASE_GO). Verify a download: see the README."
@@ -42,13 +52,13 @@ RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
 DIST_TARGETS := linux/amd64 linux/arm64 linux/armv6 darwin/amd64 darwin/arm64 windows/amd64
 # A stable version also gets a .deb per linux target (armv6 is Debian's armhf).
 DEB_ARCHS    := $(subst armv6,armhf,$(patsubst linux/%,%,$(filter linux/%,$(DIST_TARGETS))))
-DIST_DEBS    := $(if $(shell echo '$(VERSION)' | grep -xE '[0-9]+\.[0-9]+\.[0-9]+'),$(foreach a,$(DEB_ARCHS),gmt-mail_$(VERSION)-1_$(a).deb))
+DIST_DEBS    := $(if $(STABLE),$(foreach a,$(DEB_ARCHS),gmt-mail_$(VERSION)-1_$(a).deb))
 DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)).$(if $(filter windows/%,$(t)),zip,tar.gz)) \
 	$(DIST_DEBS) SHA256SUMS SHA256SUMS.asc
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
 
-.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-release test-pkg
+.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-release test-pkg image push-image test-image
 
 all: test lint build
 
@@ -91,7 +101,8 @@ PREV_RELEASE := $(shell $(GH) release list --exclude-drafts --exclude-pre-releas
 
 # Creates the GitHub release with the dist archives; an existing release that lacks
 # any of them (none yet, or an interrupted upload) gets all of them (re)uploaded,
-# and a draft left by an interrupted `gh release create` is published.
+# and a draft left by an interrupted `gh release create` is published. A stable
+# release whose image is not on ghcr.io (e.g. a failed push) gets it pushed.
 # Archives are built only when they are needed.
 release: tag
 	@if $(GH) release view $(TAG) >/dev/null 2>&1; then \
@@ -99,10 +110,14 @@ release: tag
 		for a in $(DIST_ASSETS); do case "$$have" in *" $$a "*) ;; *) missing="$$missing $$a";; esac; done; \
 		if [ -z "$$missing" ]; then \
 			echo "release: $(TAG) exists on GitHub with all assets"; \
+			$(if $(STABLE),if ! skopeo inspect --raw docker://$(IMAGE):$(TAG) >/dev/null 2>&1; then \
+				echo "release: $(IMAGE):$(TAG) not found (an earlier run was interrupted?)"; \
+				$(MAKE) --no-print-directory push-image || exit 1; \
+			fi;) \
 		else \
 			echo "release: $(TAG) lacks:$$missing"; \
 			$(RELEASE_DIST) && $(GH) release upload --clobber $(TAG) $(DIST_FILES) \
-				&& echo "release: uploaded assets to $(TAG)" || exit 1; \
+				&& echo "release: uploaded assets to $(TAG)" $(RELEASE_PUSH) || exit 1; \
 		fi; \
 		if [ "$$($(GH) release view $(TAG) --json isDraft --jq .isDraft)" = true ]; then \
 			$(GH) release edit $(TAG) --draft=false && echo "release: published draft $(TAG)"; \
@@ -110,11 +125,11 @@ release: tag
 	elif [ -n "$(PREV_RELEASE)" ]; then \
 		$(RELEASE_DIST) && \
 		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes --notes-start-tag $(PREV_RELEASE) $(RELEASE_FLAGS) $(DIST_FILES) \
-			&& echo "release: created $(TAG) (diff from $(PREV_RELEASE))"; \
+			&& echo "release: created $(TAG) (diff from $(PREV_RELEASE))" $(RELEASE_PUSH); \
 	else \
 		$(RELEASE_DIST) && \
 		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes $(RELEASE_FLAGS) $(DIST_FILES) \
-			&& echo "release: created $(TAG) (first release)"; \
+			&& echo "release: created $(TAG) (first release)" $(RELEASE_PUSH); \
 	fi
 
 # Builds the release archives from the tagged commit (a clean checkout of $(TAG)),
@@ -129,6 +144,22 @@ dist:
 	@bash -c 'source scripts/release-key.sh && sums_signed "$$1"' _ $(DIST_DIR)/SHA256SUMS \
 		|| { echo "dist: SHA256SUMS.asc is not signed by the release key" >&2; exit 1; }
 	@echo "dist: signed $(DIST_DIR)/SHA256SUMS.asc"
+
+# Multi-arch container image of the archives in DIST_DIR (make dist), as an OCI
+# layout in IMAGE_DIR and as localhost/gmt-mail:$(TAG). Needs podman or docker.
+image:
+	scripts/image.sh $(TAG) $(DIST_DIR) $(IMAGE_DIR)
+
+# Rebuilds the image of the stable $(TAG) from its signed GitHub release assets
+# and pushes it to ghcr.io; `make release` runs it. Needs a clean checkout of $(TAG).
+push-image:
+	scripts/push-image.sh $(TAG) $(IMAGE_DIR) \
+		|| { echo "push-image: fix the cause, then run: git checkout $(TAG) && make push-image VERSION=$(VERSION)" >&2; exit 1; }
+
+# Builds the image from test binaries and runs it; skipped without podman or
+# docker. Needs network for the CA bundle unless it is cached.
+test-image:
+	scripts/image_test.sh
 
 test-dist:
 	scripts/build-dist_test.sh
@@ -190,6 +221,8 @@ test-brew:
 
 test-release:
 	scripts/release-check_test.sh
+	scripts/push-image_test.sh
+	scripts/make-recipes_test.sh
 
 # Tests of the packaging and release scripts; CI runs them.
 test-pkg: test-dist test-ppa test-copr test-brew test-man test-release
