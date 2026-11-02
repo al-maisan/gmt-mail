@@ -26,10 +26,10 @@ import (
 
 func TestSubstituteVariables(t *testing.T) {
 	tests := []struct {
-		name   string
-		r      config.Recipient
-		text   string
-		want   string
+		name string
+		r    config.Recipient
+		text string
+		want string
 	}{
 		{
 			name: "all placeholders",

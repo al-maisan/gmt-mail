@@ -34,7 +34,7 @@ DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
 
-.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man
+.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-pkg
 
 all: test lint build
 
@@ -169,6 +169,9 @@ brew:
 
 test-brew:
 	scripts/brew-update_test.sh
+
+# Tests of the packaging and release scripts; CI runs them.
+test-pkg: test-dist test-ppa test-copr test-brew test-man
 
 publish: release copr ppa brew
 	@echo "Published $(TAG) to GitHub, COPR, PPA and Homebrew"
