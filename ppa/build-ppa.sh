@@ -124,7 +124,7 @@ for RELEASE in "${RELEASES[@]}"; do
 
     # Add PPA-specific debian dir
     cp -a "$SCRIPT_DIR/debian" debian
-    cp "$SRC_DIR/scripts/deb-layout.sh" debian/
+    cp "$SRC_DIR/scripts/deb-layout.sh" "$SRC_DIR/scripts/install-docs.sh" debian/
 
     # Generate changelog from git log between previous tag and current tag
     # Find previous released tag (not just any tag). Drop any ambient
