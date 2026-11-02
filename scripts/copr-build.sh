@@ -5,17 +5,17 @@
 #
 # Supported releases = released (final images listed in fedoraproject.org/releases.json)
 # and still maintained (state "current" in Fedora's Bodhi, which also marks betas as
-# current). New releases are picked up automatically; COPR_CHROOTS="fedora-44-x86_64 ..."
-# overrides the list.
-# A chroot counts as done if a build of this version that succeeded or is still in
-# progress covers it; failed/canceled builds do not, so a retry still works.
+# current), for every arch in ARCHES. New releases are picked up automatically;
+# COPR_CHROOTS="fedora-44-x86_64 ..." overrides the list.
+# A chroot counts as done if it succeeded or is still in progress in a build of this
+# version; failed/canceled chroots do not, so a retry builds only those.
 # COPR_FORCE=1 builds for all target chroots regardless.
 set -euo pipefail
 
 OWNER="al-maisan"
 PROJECT="gmt-mail"
 PACKAGE="gmt-mail"
-ARCH="x86_64"
+ARCHES=(x86_64 aarch64)
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COPR_API="https://copr.fedorainfracloud.org/api_3"
 
@@ -27,31 +27,44 @@ import json, sys
 print("\n".join(sorted({r["version"] for r in json.load(sys.stdin) if str(r.get("version", "")).isdigit()}, key=int)))'
 }
 
-# supported_chroots RELEASED: read Bodhi's releases JSON on stdin, print fedora-N-ARCH for
-# every current Fedora release that is also in RELEASED (newline-separated versions).
+# supported_chroots RELEASED ARCH...: read Bodhi's releases JSON on stdin, print
+# fedora-N-ARCH for every current Fedora release that is also in RELEASED
+# (newline-separated versions) and every ARCH.
 # EPEL, ELN, container and flatpak releases are skipped.
 supported_chroots() {
     python3 -I -c '
 import json, sys
-released = set(sys.argv[2].split())
+released = set(sys.argv[1].split())
 vers = {r["version"] for r in json.load(sys.stdin).get("releases", [])
         if r.get("id_prefix") == "FEDORA" and r.get("state") == "current" and r.get("version") in released}
 for v in sorted(vers, key=int):
-    print(f"fedora-{v}-{sys.argv[1]}")
-' "$ARCH" "$1"
+    for a in sys.argv[2:]:
+        print(f"fedora-{v}-{a}")
+' "$@"
 }
 
-# built_chroots NVR: read COPR's build/list JSON on stdin, print the chroots covered by
-# builds of NVR (e.g. 0.8.0-1) that succeeded or are still in progress.
-built_chroots() {
+# nvr_builds NVR: read COPR's build/list JSON on stdin, print the ids of the builds
+# of NVR (e.g. 0.8.0-1), whatever their state: a failed build can hold chroots that
+# succeeded.
+nvr_builds() {
     python3 -I -c '
 import json, sys
-done = set()
 for b in json.load(sys.stdin).get("items", []):
-    if (b.get("source_package") or {}).get("version") == sys.argv[1] and b.get("state") not in ("failed", "canceled"):
-        done.update(b.get("chroots") or [])
-print("\n".join(sorted(done)))
+    if (b.get("source_package") or {}).get("version") == sys.argv[1]:
+        print(b["id"])
 ' "$1"
+}
+
+# done_chroots: read COPR's build-chroot/list JSON of one build on stdin, print the
+# chroots that succeeded or are still in progress. A build fails as a whole if one
+# chroot fails, so a retry must look at each chroot.
+done_chroots() {
+    python3 -I -c '
+import json, sys
+for c in json.load(sys.stdin).get("items", []):
+    if c.get("state") not in ("failed", "canceled"):
+        print(c["name"])
+'
 }
 
 # project_chroots: read COPR's project JSON on stdin, print the chroots enabled in it.
@@ -85,7 +98,7 @@ if [ -n "${COPR_CHROOTS:-}" ]; then
 else
     RELEASES_JSON=$(fetch "https://fedoraproject.org/releases.json")
     BODHI=$(fetch "https://bodhi.fedoraproject.org/releases/?state=current&rows_per_page=100")
-    TARGETS=$(supported_chroots "$(released_versions <<<"$RELEASES_JSON")" <<<"$BODHI")
+    TARGETS=$(supported_chroots "$(released_versions <<<"$RELEASES_JSON")" "${ARCHES[@]}" <<<"$BODHI")
     [ -n "$TARGETS" ] || { echo "Error: found no released and maintained Fedora release" >&2; exit 1; }
 fi
 
@@ -93,7 +106,13 @@ if [ -n "${COPR_FORCE:-}" ]; then
     TODO="$TARGETS"
 else
     BUILDS=$(fetch "${COPR_API}/build/list?ownername=${OWNER}&projectname=${PROJECT}&packagename=${PACKAGE}&limit=100&order=id&order_type=DESC")
-    DONE=$(built_chroots "$NVR" <<<"$BUILDS")
+    # An assignment, not the for list: set -e ignores a failed $(...) there, and an
+    # empty list would rebuild every chroot.
+    IDS=$(nvr_builds "$NVR" <<<"$BUILDS")
+    DONE=
+    for ID in $IDS; do
+        DONE+=$(done_chroots <<<"$(fetch "${COPR_API}/build-chroot/list?build_id=${ID}")")$'\n'
+    done
     TODO=$(missing "$TARGETS" "$DONE")
     if [ -z "$TODO" ]; then
         echo "COPR already has ${PACKAGE}-${NVR} for: $(paste -sd' ' <<<"$TARGETS"). Nothing to do."

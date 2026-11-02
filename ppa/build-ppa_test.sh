@@ -33,6 +33,18 @@ check "new version: nothing uploaded" "" "$UPLOADED"
 check "new version: not uploaded for resolute" no "$(uploaded_for resolute && echo yes || echo no)"
 check "new version: revision 1" 1 "$(next_rev)"
 
+# An upload still pending publication counts.
+VERSION=0.11.0
+UPLOADED=$(uploaded_versions "$VERSION" <<<'{"entries": [{"source_package_version": "0.11.0-1ppa1~resolute1", "status": "Pending"}, {"source_package_version": "0.10.0-1ppa1~resolute1", "status": "Published"}]}')
+check "pending upload counts" "0.11.0-1ppa1~resolute1" "$UPLOADED"
+check "pending upload: next revision 2" 2 "$(next_rev)"
+# A stub curl shows what lp_sources asks: past the cache, for this PPA's gmt-mail.
+curl() { printf '%s\n' "$@"; }
+check "query bypasses the API cache" yes "$(lp_sources | grep -qx 'Cache-Control: no-cache' && echo yes || echo no)"
+check "query: this PPA, exact name" yes \
+    "$(lp_sources | grep -qxF 'https://api.launchpad.net/1.0/~al-maisan/+archive/ubuntu/gmt-mail?ws.op=getPublishedSources&source_name=gmt-mail&exact_match=true' && echo yes || echo no)"
+unset -f curl
+
 VERSION=0.8.0
 UPLOADED=$(uploaded_versions "$VERSION" <<<'{"entries": []}')
 check "empty PPA" "" "$UPLOADED"

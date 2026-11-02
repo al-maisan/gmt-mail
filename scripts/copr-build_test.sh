@@ -33,17 +33,30 @@ BUILDS='{"items": [
 
 RELEASED=$(released_versions <<<"$RELEASES_JSON")
 check "released: final images only, no beta" "42 43 44" "$(flat <<<"$RELEASED")"
-TARGETS=$(supported_chroots "$RELEASED" <<<"$BODHI")
-check "supported: released and maintained" "fedora-43-x86_64 fedora-44-x86_64" "$(flat <<<"$TARGETS")"
+check "supported: released and maintained, every arch" \
+    "fedora-43-x86_64 fedora-43-aarch64 fedora-44-x86_64 fedora-44-aarch64" \
+    "$(supported_chroots "$RELEASED" "${ARCHES[@]}" <<<"$BODHI" | flat)"
+check "arches: x86_64 and aarch64" "x86_64 aarch64" "${ARCHES[*]}"
+TARGETS=$(supported_chroots "$RELEASED" x86_64 <<<"$BODHI")
+check "supported: one arch" "fedora-43-x86_64 fedora-44-x86_64" "$(flat <<<"$TARGETS")"
 check "supported: picks up 45 once released" "fedora-43-x86_64 fedora-44-x86_64 fedora-45-x86_64" \
-    "$(supported_chroots "$(printf '43\n44\n45')" <<<"$BODHI" | flat)"
+    "$(supported_chroots "$(printf '43\n44\n45')" x86_64 <<<"$BODHI" | flat)"
 
-check "built: succeeded counts, failed does not" "fedora-43-x86_64" "$(built_chroots 0.8.0-1 <<<"$BUILDS" | flat)"
-check "built: running counts" "fedora-44-x86_64" "$(built_chroots 0.8.1-1 <<<"$BUILDS" | flat)"
-check "built: 0.8.0-1 does not match 0.8.0-10" "" "$(built_chroots 0.8.0-1 <<<'{"items":[{"state":"succeeded","chroots":["fedora-44-x86_64"],"source_package":{"version":"0.8.0-10"}}]}')"
-check "built: unknown version" "" "$(built_chroots 1.0.0-1 <<<"$BUILDS")"
+check "builds of a version: failed ones too" "6 5" "$(nvr_builds 0.8.0-1 <<<"$BUILDS" | flat)"
+check "builds: 0.8.0-1 does not match 0.8.0-10" "" "$(nvr_builds 0.8.0-1 <<<'{"items":[{"id":1,"state":"succeeded","source_package":{"version":"0.8.0-10"}}]}')"
+check "builds: unknown version" "" "$(nvr_builds 1.0.0-1 <<<"$BUILDS")"
+check "builds: fails on a non-JSON answer" no "$(nvr_builds 0.8.0-1 <<<'<html>' >/dev/null 2>&1 && echo yes || echo no)"
+check "builds: fails on a build without id" no \
+    "$(nvr_builds 0.8.0-1 <<<'{"items":[{"state":"failed","source_package":{"version":"0.8.0-1"}}]}' >/dev/null 2>&1 && echo yes || echo no)"
+check "chroots: fails on a non-JSON answer" no "$(done_chroots <<<'' >/dev/null 2>&1 && echo yes || echo no)"
+# A failed build: aarch64 failed, x86_64 succeeded; another still running.
+CHROOT_JSON='{"items": [{"name": "fedora-44-x86_64", "state": "succeeded"}, {"name": "fedora-44-aarch64", "state": "failed"},
+ {"name": "fedora-43-x86_64", "state": "running"}, {"name": "fedora-43-aarch64", "state": "canceled"}]}'
+check "chroots: succeeded and running count, failed and canceled do not" "fedora-43-x86_64 fedora-44-x86_64" \
+    "$(done_chroots <<<"$CHROOT_JSON" | sort | flat)"
 
-check "todo: only the missing release" "fedora-44-x86_64" "$(missing "$TARGETS" "$(built_chroots 0.8.0-1 <<<"$BUILDS")" | flat)"
+check "todo: only the failed chroot of a failed build" "fedora-44-aarch64" \
+    "$(missing "$(printf 'fedora-44-x86_64\nfedora-44-aarch64')" "$(done_chroots <<<"$CHROOT_JSON")" | flat)"
 check "todo: nothing when all are built" "" "$(missing "$TARGETS" "$(printf 'fedora-43-x86_64\nfedora-44-x86_64\nfedora-42-x86_64')")"
 check "todo: everything when nothing is built" "fedora-43-x86_64 fedora-44-x86_64" "$(missing "$TARGETS" "" | flat)"
 
