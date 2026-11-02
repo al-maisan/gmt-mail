@@ -4,7 +4,8 @@
 #
 # One archive per target (tar.gz, zip for Windows) holding the binary, LICENSE,
 # README.md with its logos (assets/) and the man page. Binaries use the same
-# -ldflags as `make build`.
+# -ldflags as `make build`. A stable VERSION (MAJOR.MINOR.PATCH) also gets a .deb
+# per linux target (scripts/deb.sh; needs dpkg-deb).
 # Archives are reproducible: the same source, arguments and Go toolchain give the
 # same SHA256SUMS (the Go version is embedded in the binaries).
 # DIST_TARGETS="linux/amd64 ..." overrides the target list.
@@ -25,9 +26,11 @@ SRC=$(cd "$(dirname "$0")/.." && pwd)
 LDFLAGS="-X main.appVersion=$VERSION -X main.gitCommit=$COMMIT -X main.buildDate=$DATE"
 # Fixed file times keep the archives reproducible.
 EPOCH=$(date -u -d "$DATE" +%s)
+DEBS=
+if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then DEBS=1; else echo "dist: $VERSION is not a stable release: no .deb"; fi
 
 # Remove only what this script writes: OUT may hold other files.
-rm -rf "$OUT/stage" "$OUT"/gmt-mail-* "$OUT"/SHA256SUMS*
+rm -rf "$OUT/stage" "$OUT"/gmt-mail-* "$OUT"/gmt-mail_*.deb "$OUT"/SHA256SUMS*
 mkdir -p "$OUT/stage"
 for target in $TARGETS; do
     os=${target%/*} arch=${target#*/} goarch=${target#*/} goarm=
@@ -50,9 +53,15 @@ for target in $TARGETS; do
         tar -C "$OUT/stage" --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$EPOCH" \
             -cf - "$name" | gzip -n >"$OUT/$name.tar.gz"
     fi
+    if [ -n "$DEBS" ] && [ "$os" == linux ]; then
+        debarch=$arch
+        [ "$arch" == armv6 ] && debarch=armhf
+        "$SRC/scripts/deb.sh" "$dir/gmt-mail" "$VERSION" "$debarch" "$EPOCH" "$OUT/gmt-mail_${VERSION}-1_${debarch}.deb" >/dev/null
+        echo "dist: gmt-mail_${VERSION}-1_${debarch}.deb"
+    fi
     echo "dist: $name"
 done
 rm -rf "$OUT/stage"
 shopt -s nullglob
-(cd "$OUT" && files=(*.tar.gz *.zip) && sha256sum -- "${files[@]}" >SHA256SUMS)
+(cd "$OUT" && files=(*.tar.gz *.zip gmt-mail_*.deb) && sha256sum -- "${files[@]}" >SHA256SUMS)
 echo "dist: $OUT/SHA256SUMS"

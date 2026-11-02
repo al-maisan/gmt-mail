@@ -16,7 +16,7 @@ export DIST_TARGETS="linux/amd64 linux/armv6 windows/amd64"
 "$DIST" 1.2.3 abc1234 2026-01-02 "$TMP/a" >/dev/null || { echo "FAIL - build-dist.sh exited $?"; exit 1; }
 cd "$TMP/a" || exit 1
 
-check "archives" "gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-linux-armv6.tar.gz gmt-mail-1.2.3-windows-amd64.zip SHA256SUMS" "$(ls | sort -f | paste -sd' ')"
+check "archives" "gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-linux-armv6.tar.gz gmt-mail-1.2.3-windows-amd64.zip gmt-mail_1.2.3-1_amd64.deb gmt-mail_1.2.3-1_armhf.deb SHA256SUMS" "$(ls | sort -f | paste -sd' ')"
 check "checksums verify" "0" "$(sha256sum --quiet -c SHA256SUMS >/dev/null 2>&1; echo $?)"
 check "tar contents" "gmt-mail-1.2.3-linux-amd64/ gmt-mail-1.2.3-linux-amd64/LICENSE gmt-mail-1.2.3-linux-amd64/README.md gmt-mail-1.2.3-linux-amd64/assets/ gmt-mail-1.2.3-linux-amd64/assets/logo-dark.svg gmt-mail-1.2.3-linux-amd64/assets/logo.svg gmt-mail-1.2.3-linux-amd64/gmt-mail gmt-mail-1.2.3-linux-amd64/gmt-mail.1" \
     "$(tar tzf gmt-mail-1.2.3-linux-amd64.tar.gz | paste -sd' ')"
@@ -43,6 +43,11 @@ check "modes under umask 077" "-rw-r--r-- -rwxr-xr-x drwxr-xr-x" \
 touch "$TMP/b/keep.txt"
 "$DIST" 1.2.3 abc1234 2026-01-02 "$TMP/b" >/dev/null
 check "rebuild keeps unrelated files" "yes" "$([ -e "$TMP/b/keep.txt" ] && echo yes || echo no)"
+check "deb in SHA256SUMS" "gmt-mail_1.2.3-1_amd64.deb gmt-mail_1.2.3-1_armhf.deb" "$(awk '/\.deb$/ {print $2}' SHA256SUMS | paste -sd' ')"
+check "deb binary is the archive's" "$(tar xzOf gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-linux-amd64/gmt-mail | sha256sum)" \
+    "$(dpkg-deb --fsys-tarfile gmt-mail_1.2.3-1_amd64.deb | tar xOf - ./usr/bin/gmt-mail | sha256sum)"
+"$DIST" 1.2.3-rc1 abc1234 2026-01-02 "$TMP/d" >/dev/null
+check "prerelease: no .deb" "" "$(cd "$TMP/d" && ls ./*.deb 2>/dev/null)"
 check "usage error" "1" "$("$DIST" 1.2.3 >/dev/null 2>&1; echo $?)"
 
 exit "$fail"

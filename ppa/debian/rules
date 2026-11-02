@@ -27,10 +27,6 @@ override_dh_dwz:
 override_dh_compress:
 	dh_compress -X README.md
 
+# deb-layout.sh (copied here by build-ppa.sh) is shared with the release .deb.
 override_dh_auto_install:
-	install -Dpm 0755 gmt-mail debian/gmt-mail/usr/bin/gmt-mail
-	install -d debian/gmt-mail/usr/share/man/man1
-	sed -e 's/@VERSION@/$(VERSION)/g' -e 's/@DATE@/$(MANDATE)/g' gmt-mail.1 > debian/gmt-mail/usr/share/man/man1/gmt-mail.1
-	install -Dpm 0644 .env.example debian/gmt-mail/usr/share/doc/gmt-mail/.env.example
-	install -Dpm 0644 README.md debian/gmt-mail/usr/share/doc/gmt-mail/README.md
-	install -Dpm 0644 -t debian/gmt-mail/usr/share/doc/gmt-mail/assets assets/logo.svg assets/logo-dark.svg
+	bash debian/deb-layout.sh $(CURDIR)/debian/gmt-mail gmt-mail $(VERSION) $(MANDATE)

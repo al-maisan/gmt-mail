@@ -20,8 +20,13 @@ check "spec: man sed survives gen-spec" 1 "$(grep -c -F "s/@VERSION[@]/%{version
 # Run the spec's and debian/rules' sed expressions on the template, as the builds do.
 RPM_OUT=$(sed -e "s/@VERSION[@]/$VERSION/g" -e "s/@DATE[@]/2026-01-02/g" "$SRC_DIR/gmt-mail.1" | grep '^\.TH')
 check "rpm render" ".TH GMT\\-MAIL 1 \"2026-01-02\" \"gmt-mail $VERSION\" \"User Commands\"" "$RPM_OUT"
-RULE=$(grep -E "^\s+sed -e 's/@VERSION@/\\\$\(VERSION\)/g' -e 's/@DATE@/\\\$\(MANDATE\)/g' gmt-mail.1" "$SRC_DIR/ppa/debian/rules")
-check "debian rules: sed present" 1 "$([ -n "$RULE" ] && echo 1 || echo 0)"
+# debian/rules installs the man page with deb-layout.sh, as the release .deb does.
+# shellcheck disable=SC2016 # literal $(...) and $VAR are looked for
+check "debian rules: deb-layout.sh with version and man date" 1 \
+    "$(grep -cF 'debian/deb-layout.sh $(CURDIR)/debian/gmt-mail gmt-mail $(VERSION) $(MANDATE)' "$SRC_DIR/ppa/debian/rules")"
+# shellcheck disable=SC2016
+check "deb-layout.sh: sed present" 1 \
+    "$(grep -cF 'sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$MAN_DATE/g" gmt-mail.1' "$SRC_DIR/scripts/deb-layout.sh")"
 DEB_OUT=$(sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/2026-01-02/g" "$SRC_DIR/gmt-mail.1" | grep '^\.TH')
 check "debian render" "$RPM_OUT" "$DEB_OUT"
 
