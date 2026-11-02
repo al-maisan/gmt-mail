@@ -85,7 +85,7 @@ Compared with the usual alternatives:
 
 Every [release](https://github.com/al-maisan/gmt-mail/releases) has archives for linux/amd64, linux/arm64, linux/armv6 (a 32-bit OS on any Raspberry Pi), darwin/amd64, darwin/arm64 and windows/amd64 (zip). Each holds the `gmt-mail` binary, the man page, README and LICENSE. `SHA256SUMS` is signed with the [maintainer's key](https://github.com/al-maisan.gpg). Example for Linux amd64 (set `V` to the latest release):
 
-    $ V=0.9.1 A=gmt-mail-$V-linux-amd64
+    $ V=0.10.0 A=gmt-mail-$V-linux-amd64
     $ U=https://github.com/al-maisan/gmt-mail/releases/download/v$V
     $ curl -LO $U/$A.tar.gz -LO $U/SHA256SUMS -LO $U/SHA256SUMS.asc
     $ curl -s https://github.com/al-maisan.gpg | gpg --import
@@ -146,7 +146,7 @@ Requires [Go](https://go.dev/) 1.26 or later.
     $ make build
     $ ./gmt-mail -h
 
-The Makefile embeds the version, git commit hash, and build date into the binary. CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` (the tests of the packaging and release scripts) and `make build` on every pull request. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `test-release`, `test-pkg`, `image`, `push-image`, `test-image`, `publish`.
+The Makefile embeds the version, git commit hash, and build date into the binary. CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` (the tests of the packaging and release scripts) and `make build` on every pull request. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `doc-version`, `test-release`, `test-pkg`, `image`, `push-image`, `test-image`, `publish`.
 
 ## Quick start
 
@@ -318,7 +318,7 @@ Transient send failures are retried automatically (controlled by `-retries` and 
 ## Releasing a new version
 
 The version is derived from the latest git tag — there is no `VERSION` to edit.
-Cut a release by creating and pushing a signed tag, then publish everywhere:
+Cut a release by setting the version of the README's download example (`make doc-version V=0.7.0`, then merge that change), creating and pushing a signed tag, then publishing everywhere:
 
     $ git tag -s v0.7.0 -m "v0.7.0"
     $ git push origin v0.7.0
@@ -328,7 +328,7 @@ Cut a release by creating and pushing a signed tag, then publish everywhere:
 
 > **Note:** both package changelogs (the RPM `%changelog` and the Debian `debian/changelog`) are generated from `git log` between **GitHub releases**, so a version appears in them only once a GitHub *release* exists for its tag. `make publish` (and `make release`) create the release *before* building packages, so a full `make publish` yields complete changelogs — but building packages standalone (`make srpm`/`make copr`/`make ppa`) before the release exists will omit that version.
 
-Before it builds or uploads anything, `make release` runs `scripts/release-check.sh`: it stops unless the tree is clean, HEAD is the tag, the tag is `vMAJOR.MINOR.PATCH[-PRE]`, signed by the release key (`RELEASE_KEY`, default `753B6ECF2B458FF3D19D568C1E0A288397AE739E`) and the same tag object on GitHub, and HEAD is on `master` of GitHub. Then it runs `lint` and `test`. `make dist` checks that the release key signed `SHA256SUMS`. A tag with `-PRE` becomes a GitHub prerelease; `make publish` then skips COPR, PPA and Homebrew, and the changelogs and release notes of the next stable release start at the previous stable one. The release notes name the Go toolchain. `make test-release` runs the tests of these checks.
+Before it builds or uploads anything, `make release` runs `scripts/release-check.sh`: it stops unless the tree is clean, HEAD is the tag, the tag is `vMAJOR.MINOR.PATCH[-PRE]`, signed by the release key (`RELEASE_KEY`, default `753B6ECF2B458FF3D19D568C1E0A288397AE739E`) and the same tag object on GitHub, and HEAD is on `master` of GitHub. A stable tag also needs the README's download example at its version (`scripts/doc-version.sh check`). Then it runs `lint` and `test`. `make dist` checks that the release key signed `SHA256SUMS`. A tag with `-PRE` becomes a GitHub prerelease; `make publish` then skips COPR, PPA and Homebrew, and the changelogs and release notes of the next stable release start at the previous stable one. The release notes name the Go toolchain. `make test-release` runs the tests of these checks.
 
 Individual targets are also available:
 
