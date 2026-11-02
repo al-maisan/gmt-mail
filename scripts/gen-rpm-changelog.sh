@@ -15,7 +15,8 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
 # List released tags newest first (only tags with actual GitHub releases).
 # Drop any ambient GITHUB_TOKEN so gh uses the keyring login; a narrow-scoped
 # token can make this return nothing and silently truncate the changelog.
-TAGS=($(env -u GITHUB_TOKEN gh release list --json tagName --jq '.[].tagName' 2>/dev/null))
+# `|| true`: under set -e a failing gh (e.g. not logged in, as in CI) would exit here.
+TAGS=($(env -u GITHUB_TOKEN gh release list --json tagName --jq '.[].tagName' 2>/dev/null || true))
 
 if [ ${#TAGS[@]} -eq 0 ]; then
     # Fallback to git tags if gh is unavailable

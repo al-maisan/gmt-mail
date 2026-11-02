@@ -129,7 +129,7 @@ Requires [Go](https://go.dev/) 1.26 or later.
     $ make build
     $ ./gmt-mail -h
 
-The Makefile embeds the version, git commit hash, and build date into the binary. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `publish`.
+The Makefile embeds the version, git commit hash, and build date into the binary. CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` (the tests of the packaging and release scripts) and `make build` on every pull request. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `test-pkg`, `publish`.
 
 ## Quick start
 
