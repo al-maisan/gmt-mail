@@ -129,7 +129,7 @@ for RELEASE in "${RELEASES[@]}"; do
     # Find previous released tag (not just any tag). Drop any ambient
     # GITHUB_TOKEN so gh uses the keyring login (a narrow-scoped token would
     # make this empty and mis-scope the changelog range).
-    PREV_TAG=$(env -u GITHUB_TOKEN gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null \
+    PREV_TAG=$(env -u GITHUB_TOKEN gh release list --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null \
         | grep -v "^${TAG}$" | head -1 || echo "")
     TIMESTAMP=$(date -R)
     {

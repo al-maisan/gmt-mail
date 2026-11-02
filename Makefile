@@ -5,7 +5,9 @@ BINARY  := gmt-mail
 # Override for a one-shot cut before the tag exists: make release VERSION=0.7.0
 GIT_VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null)
 VERSION     := $(patsubst v%,%,$(or $(GIT_VERSION),v0.0.0))
-COMMIT  := $(shell git rev-parse --short HEAD)
+# A fixed length: the default grows with the clone's object count, and the
+# commit is in the binaries.
+COMMIT  := $(shell git rev-parse --short=7 HEAD)
 DATE    := $(shell date -u +%Y-%m-%d)
 LDFLAGS := -X main.appVersion=$(VERSION) -X main.gitCommit=$(COMMIT) -X main.buildDate=$(DATE)
 TAG     := v$(VERSION)
@@ -27,6 +29,15 @@ MAN_OUT  := $(BUILD_ROOT)/man/gmt-mail.1
 # Release archives + SHA256SUMS(.asc); signed with SIGNING_KEY (default: git's user.signingkey).
 DIST_DIR    := $(BUILD_ROOT)/dist/$(VERSION)
 SIGNING_KEY ?= $(shell git config user.signingkey)
+# Official Go toolchain of the release builds, so anyone can rebuild the same
+# archives. Bump it with Go patch releases.
+RELEASE_GO ?= go1.26.10
+# Checks the tag (scripts/release-check.sh), runs lint and test, then builds and
+# signs the archives.
+RELEASE_DIST = scripts/release-check.sh $(TAG) && $(MAKE) --no-print-directory lint test dist
+# Prereleases (vX.Y.Z-PRE) are marked as such on GitHub.
+RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
+	--notes "Built with $(RELEASE_GO). Verify a download: see the README."
 # := ignores an ambient DIST_TARGETS, so a release always ships every target.
 DIST_TARGETS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)).$(if $(filter windows/%,$(t)),zip,tar.gz)) \
@@ -34,7 +45,7 @@ DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
 
-.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-pkg
+.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-release test-pkg
 
 all: test lint build
 
@@ -73,7 +84,7 @@ tag:
 		echo "tag: pushed $(TAG)"; \
 	fi
 
-PREV_RELEASE := $(shell $(GH) release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null)
+PREV_RELEASE := $(shell $(GH) release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null)
 
 # Creates the GitHub release with the dist archives; an existing release that lacks
 # any of them (none yet, or an interrupted upload) gets all of them (re)uploaded,
@@ -87,30 +98,33 @@ release: tag
 			echo "release: $(TAG) exists on GitHub with all assets"; \
 		else \
 			echo "release: $(TAG) lacks:$$missing"; \
-			$(MAKE) --no-print-directory dist && $(GH) release upload --clobber $(TAG) $(DIST_FILES) \
+			$(RELEASE_DIST) && $(GH) release upload --clobber $(TAG) $(DIST_FILES) \
 				&& echo "release: uploaded assets to $(TAG)" || exit 1; \
 		fi; \
 		if [ "$$($(GH) release view $(TAG) --json isDraft --jq .isDraft)" = true ]; then \
 			$(GH) release edit $(TAG) --draft=false && echo "release: published draft $(TAG)"; \
 		fi; \
 	elif [ -n "$(PREV_RELEASE)" ]; then \
-		$(MAKE) --no-print-directory dist && \
-		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes --notes-start-tag $(PREV_RELEASE) $(DIST_FILES) \
+		$(RELEASE_DIST) && \
+		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes --notes-start-tag $(PREV_RELEASE) $(RELEASE_FLAGS) $(DIST_FILES) \
 			&& echo "release: created $(TAG) (diff from $(PREV_RELEASE))"; \
 	else \
-		$(MAKE) --no-print-directory dist && \
-		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes $(DIST_FILES) \
+		$(RELEASE_DIST) && \
+		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes $(RELEASE_FLAGS) $(DIST_FILES) \
 			&& echo "release: created $(TAG) (first release)"; \
 	fi
 
 # Builds the release archives from the tagged commit (a clean checkout of $(TAG)),
 # dated with the tag's commit date so a rebuild gives the same archives,
-# then signs SHA256SUMS (one key touch).
+# with the pinned Go toolchain, then signs SHA256SUMS (one key touch) and checks
+# that the release key made the signature.
 dist:
 	@[ "$$(git rev-parse HEAD)" = "$$(git rev-parse -q --verify '$(TAG)^{commit}')" ] && [ -z "$$(git status --porcelain)" ] \
 		|| { echo "dist: HEAD must be a clean checkout of $(TAG)" >&2; exit 1; }
-	DIST_TARGETS="$(DIST_TARGETS)" scripts/build-dist.sh $(VERSION) $(COMMIT) $(MAN_DATE) $(DIST_DIR)
+	GOTOOLCHAIN=$(RELEASE_GO) DIST_TARGETS="$(DIST_TARGETS)" scripts/build-dist.sh $(VERSION) $(COMMIT) $(MAN_DATE) $(DIST_DIR)
 	gpg --batch --yes --armor --detach-sign $(if $(SIGNING_KEY),--local-user $(SIGNING_KEY)) $(DIST_DIR)/SHA256SUMS
+	@bash -c 'source scripts/release-key.sh && sums_signed "$$1"' _ $(DIST_DIR)/SHA256SUMS \
+		|| { echo "dist: SHA256SUMS.asc is not signed by the release key" >&2; exit 1; }
 	@echo "dist: signed $(DIST_DIR)/SHA256SUMS.asc"
 
 test-dist:
@@ -170,11 +184,16 @@ brew:
 test-brew:
 	scripts/brew-update_test.sh
 
-# Tests of the packaging and release scripts; CI runs them.
-test-pkg: test-dist test-ppa test-copr test-brew test-man
+test-release:
+	scripts/release-check_test.sh
 
-publish: release copr ppa brew
-	@echo "Published $(TAG) to GitHub, COPR, PPA and Homebrew"
+# Tests of the packaging and release scripts; CI runs them.
+test-pkg: test-dist test-ppa test-copr test-brew test-man test-release
+
+# A prerelease goes to GitHub only: RPM versions can't hold '-', dpkg sorts
+# 1.0.0-rc1-1ppa1 above 1.0.0, and Homebrew would move to it.
+publish: release $(if $(findstring -,$(TAG)),,copr ppa brew)
+	@echo "Published $(TAG) to $(if $(findstring -,$(TAG)),GitHub (prerelease),GitHub, COPR, PPA and Homebrew)"
 
 clean:
 	rm -f $(BINARY)

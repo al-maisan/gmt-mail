@@ -16,11 +16,11 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
 # Drop any ambient GITHUB_TOKEN so gh uses the keyring login; a narrow-scoped
 # token can make this return nothing and silently truncate the changelog.
 # `|| true`: under set -e a failing gh (e.g. not logged in, as in CI) would exit here.
-TAGS=($(env -u GITHUB_TOKEN gh release list --json tagName --jq '.[].tagName' 2>/dev/null || true))
+TAGS=($(env -u GITHUB_TOKEN gh release list --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName' 2>/dev/null || true))
 
 if [ ${#TAGS[@]} -eq 0 ]; then
     # Fallback to git tags if gh is unavailable
-    TAGS=($(git tag -l 'v*' --sort=-version:refname))
+    TAGS=($(git tag -l 'v*' --sort=-version:refname | grep -vF -- - || true))
 fi
 
 for i in "${!TAGS[@]}"; do
