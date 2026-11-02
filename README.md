@@ -83,7 +83,7 @@ Compared with the usual alternatives:
 
 ### Prebuilt binaries (Linux, macOS, Windows)
 
-Every [release](https://github.com/al-maisan/gmt-mail/releases) has archives for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 and windows/amd64 (zip). Each holds the `gmt-mail` binary, the man page, README and LICENSE. `SHA256SUMS` is signed with the [maintainer's key](https://github.com/al-maisan.gpg). Example for Linux amd64 (set `V` to the latest release):
+Every [release](https://github.com/al-maisan/gmt-mail/releases) has archives for linux/amd64, linux/arm64, linux/armv6 (a 32-bit OS on any Raspberry Pi), darwin/amd64, darwin/arm64 and windows/amd64 (zip). Each holds the `gmt-mail` binary, the man page, README and LICENSE. `SHA256SUMS` is signed with the [maintainer's key](https://github.com/al-maisan.gpg). Example for Linux amd64 (set `V` to the latest release):
 
     $ V=0.9.1 A=gmt-mail-$V-linux-amd64
     $ U=https://github.com/al-maisan/gmt-mail/releases/download/v$V

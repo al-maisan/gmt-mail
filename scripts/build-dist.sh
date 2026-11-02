@@ -13,7 +13,8 @@ set -euo pipefail
 # Same output whatever the caller's environment says.
 export CGO_ENABLED=0 GOAMD64=v1 GOARM64=v8.0 GOFLAGS='' GOEXPERIMENT=''
 
-TARGETS=${DIST_TARGETS:-"linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"}
+# linux/armv6 runs on every Raspberry Pi, Zero and 1 included, with a 32-bit OS.
+TARGETS=${DIST_TARGETS:-"linux/amd64 linux/arm64 linux/armv6 darwin/amd64 darwin/arm64 windows/amd64"}
 
 if [ $# -ne 4 ]; then
     echo "usage: $0 VERSION COMMIT DATE OUT_DIR" >&2
@@ -29,13 +30,14 @@ EPOCH=$(date -u -d "$DATE" +%s)
 rm -rf "$OUT/stage" "$OUT"/gmt-mail-* "$OUT"/SHA256SUMS*
 mkdir -p "$OUT/stage"
 for target in $TARGETS; do
-    os=${target%/*} arch=${target#*/}
+    os=${target%/*} arch=${target#*/} goarch=${target#*/} goarm=
+    if [ "$arch" == armv6 ]; then goarch=arm goarm=6; fi
     name="gmt-mail-${VERSION}-${os}-${arch}"
     dir="$OUT/stage/$name"
     exe=gmt-mail
     [ "$os" == windows ] && exe=gmt-mail.exe
     mkdir -p "$dir"
-    (cd "$SRC" && CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -mod=readonly -trimpath \
+    (cd "$SRC" && CGO_ENABLED=0 GOOS=$os GOARCH=$goarch GOARM=$goarm go build -mod=readonly -trimpath \
         -ldflags "$LDFLAGS" -o "$dir/$exe" .)
     cp "$SRC/LICENSE" "$SRC/README.md" "$dir/"
     install -Dm644 -t "$dir/assets" "$SRC/assets/logo.svg" "$SRC/assets/logo-dark.svg"
