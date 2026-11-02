@@ -97,6 +97,14 @@ Every [release](https://github.com/al-maisan/gmt-mail/releases) has archives for
 
 On macOS use `shasum -a 256 --ignore-missing -c SHA256SUMS`. macOS may block the unsigned binary on first run; allow it with `xattr -d com.apple.quarantine $A/gmt-mail`.
 
+### Debian, Raspberry Pi OS, other Ubuntu releases (`.deb`)
+
+Releases after v0.10.0 also have `.deb` packages for amd64, arm64 and armhf (32-bit Raspberry Pi OS). Download the one for your system with `SHA256SUMS` and `SHA256SUMS.asc` and check them as above, then install it (example for arm64):
+
+    $ sudo apt install ./gmt-mail_${V}-1_arm64.deb
+
+It installs the same files as the PPA package. Updates are by hand: install the next release's `.deb` the same way.
+
 ### macOS and Linux ([Homebrew](https://github.com/al-maisan/homebrew-tap))
 
     $ brew install al-maisan/tap/gmt-mail
@@ -338,7 +346,7 @@ Individual targets are also available:
 
 The man page `gmt-mail.1` carries `@VERSION@`/`@DATE@` placeholders in its `.TH` header. The RPM spec and the Debian rules fill them in from the package version and its changelog date, so every package (`make copr`, `make ppa`, `make publish`) ships a man page with its own version and release date, without a manual bump. `make man` renders it to `~/.cache/gmt-mail/man/gmt-mail.1` for viewing (`man -l ~/.cache/gmt-mail/man/gmt-mail.1`); `make test-man` checks the substitution.
 
-`make dist` cross-compiles the binaries with the official Go toolchain pinned in the Makefile (`RELEASE_GO`; bump it with Go patch releases), the same `-ldflags` as `make build`, plus `-trimpath`, and packs each with LICENSE, README and the man page into `~/.cache/gmt-mail/dist/<version>/`. The archives are reproducible: the same tag built with the same Go version gives the same `SHA256SUMS` (the Go version is embedded in the binaries). Signing `SHA256SUMS` uses `SIGNING_KEY` (default: git's `user.signingkey`). `make test-dist` runs its tests. `make dist DIST_TARGETS="linux/amd64"` limits the targets for a local build; a `DIST_TARGETS` environment variable is ignored, so a release always ships every target.
+`make dist` cross-compiles the binaries with the official Go toolchain pinned in the Makefile (`RELEASE_GO`; bump it with Go patch releases), the same `-ldflags` as `make build`, plus `-trimpath`, and packs each with LICENSE, README and the man page into `~/.cache/gmt-mail/dist/<version>/`. A stable version (`X.Y.Z`) also gets a `.deb` per linux target (`scripts/deb.sh`, which needs `dpkg-deb`; Fedora: `sudo dnf install dpkg`), with the same files as the PPA package: both use `scripts/deb-layout.sh`. The archives are reproducible: the same tag built with the same Go version gives the same `SHA256SUMS` (the Go version is embedded in the binaries). Signing `SHA256SUMS` uses `SIGNING_KEY` (default: git's `user.signingkey`). `make test-dist` runs its tests. `make dist DIST_TARGETS="linux/amd64"` limits the targets for a local build; a `DIST_TARGETS` environment variable is ignored, so a release always ships every target.
 
 ## License
 

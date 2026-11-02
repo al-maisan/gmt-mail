@@ -40,8 +40,11 @@ RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
 	--notes "Built with $(RELEASE_GO). Verify a download: see the README."
 # := ignores an ambient DIST_TARGETS, so a release always ships every target.
 DIST_TARGETS := linux/amd64 linux/arm64 linux/armv6 darwin/amd64 darwin/arm64 windows/amd64
+# A stable version also gets a .deb per linux target (armv6 is Debian's armhf).
+DEB_ARCHS    := $(subst armv6,armhf,$(patsubst linux/%,%,$(filter linux/%,$(DIST_TARGETS))))
+DIST_DEBS    := $(if $(shell echo '$(VERSION)' | grep -xE '[0-9]+\.[0-9]+\.[0-9]+'),$(foreach a,$(DEB_ARCHS),gmt-mail_$(VERSION)-1_$(a).deb))
 DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)).$(if $(filter windows/%,$(t)),zip,tar.gz)) \
-	SHA256SUMS SHA256SUMS.asc
+	$(DIST_DEBS) SHA256SUMS SHA256SUMS.asc
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
 
@@ -129,6 +132,7 @@ dist:
 
 test-dist:
 	scripts/build-dist_test.sh
+	scripts/deb_test.sh
 
 srpm: vendor gen-spec
 	mkdir -p $(RPMBUILD_DIR)/{SOURCES,SPECS,SRPMS}
