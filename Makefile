@@ -39,7 +39,7 @@ RELEASE_DIST = scripts/release-check.sh $(TAG) && $(MAKE) --no-print-directory l
 RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
 	--notes "Built with $(RELEASE_GO). Verify a download: see the README."
 # := ignores an ambient DIST_TARGETS, so a release always ships every target.
-DIST_TARGETS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+DIST_TARGETS := linux/amd64 linux/arm64 linux/armv6 darwin/amd64 darwin/arm64 windows/amd64
 DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)).$(if $(filter windows/%,$(t)),zip,tar.gz)) \
 	SHA256SUMS SHA256SUMS.asc
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))

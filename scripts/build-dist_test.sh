@@ -11,12 +11,12 @@ check() { # check NAME EXPECTED ACTUAL
 DIST="$(cd "$(dirname "$0")" && pwd)/build-dist.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export DIST_TARGETS="linux/amd64 windows/amd64"
+export DIST_TARGETS="linux/amd64 linux/armv6 windows/amd64"
 
 "$DIST" 1.2.3 abc1234 2026-01-02 "$TMP/a" >/dev/null || { echo "FAIL - build-dist.sh exited $?"; exit 1; }
 cd "$TMP/a" || exit 1
 
-check "archives" "gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-windows-amd64.zip SHA256SUMS" "$(ls | sort -f | paste -sd' ')"
+check "archives" "gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-linux-armv6.tar.gz gmt-mail-1.2.3-windows-amd64.zip SHA256SUMS" "$(ls | sort -f | paste -sd' ')"
 check "checksums verify" "0" "$(sha256sum --quiet -c SHA256SUMS >/dev/null 2>&1; echo $?)"
 check "tar contents" "gmt-mail-1.2.3-linux-amd64/ gmt-mail-1.2.3-linux-amd64/LICENSE gmt-mail-1.2.3-linux-amd64/README.md gmt-mail-1.2.3-linux-amd64/assets/ gmt-mail-1.2.3-linux-amd64/assets/logo-dark.svg gmt-mail-1.2.3-linux-amd64/assets/logo.svg gmt-mail-1.2.3-linux-amd64/gmt-mail gmt-mail-1.2.3-linux-amd64/gmt-mail.1" \
     "$(tar tzf gmt-mail-1.2.3-linux-amd64.tar.gz | paste -sd' ')"
@@ -26,6 +26,8 @@ check "zip has the .exe" "gmt-mail-1.2.3-windows-amd64/gmt-mail.exe" \
     "$(unzip -Z1 gmt-mail-1.2.3-windows-amd64.zip | grep '\.exe$')"
 
 tar xzf gmt-mail-1.2.3-linux-amd64.tar.gz
+check "armv6 binary" "ARM, EABI5" \
+    "$(tar xzOf gmt-mail-1.2.3-linux-armv6.tar.gz gmt-mail-1.2.3-linux-armv6/gmt-mail | file -b - | grep -o 'ARM, EABI5')"
 check "binary version" "1.2.3-abc1234 (2026-01-02)" "$(./gmt-mail-1.2.3-linux-amd64/gmt-mail -version)"
 check "man page version" '.TH GMT\-MAIL 1 "2026-01-02" "gmt-mail 1.2.3" "User Commands"' \
     "$(grep '^\.TH' gmt-mail-1.2.3-linux-amd64/gmt-mail.1)"
