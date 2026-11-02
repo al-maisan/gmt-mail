@@ -5,8 +5,8 @@
 #
 # Stops unless the tree is clean, HEAD is TAG, TAG is vMAJOR.MINOR.PATCH[-PRE],
 # signed by the release key (RELEASE_KEY) and the same tag object on GitHub, and
-# HEAD is on master of GitHub. A stable TAG also needs the README's download
-# example at its version (doc-version.sh).
+# HEAD is on master of GitHub. A stable TAG also needs the download
+# example of docs/install.md at its version (doc-version.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=release-key.sh
@@ -26,8 +26,8 @@ TAG=$1
 [ "$(git rev-parse -q --verify "refs/tags/$TAG^{commit}")" == "$(git rev-parse HEAD)" ] \
     || die "HEAD is not $TAG; run: git checkout $TAG"
 tag_signed "$TAG" || die "tag '$TAG' is not signed by $release_key"
-# The packages ship the README: its download example must show this version.
-if [[ $TAG != *-* ]]; then scripts/doc-version.sh check "${TAG#v}" || die "README not at $TAG"; fi
+# The download example of docs/install.md must show this version.
+if [[ $TAG != *-* ]]; then scripts/doc-version.sh check "${TAG#v}" || die "docs/install.md not at $TAG"; fi
 
 # The tag on GitHub must be this very tag object, not just point to HEAD.
 REFS=$(git ls-remote "$REMOTE" "refs/tags/$TAG" "refs/tags/$TAG^{}") || die "cannot list the tags of $REMOTE"

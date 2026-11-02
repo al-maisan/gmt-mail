@@ -8,7 +8,8 @@ check() { # check NAME EXPECTED ACTUAL
     if [ "$2" == "$3" ]; then echo "ok   - $1"; else echo "FAIL - $1: want '$2', got '$3'"; fail=1; fi
 }
 
-DIST="$(cd "$(dirname "$0")" && pwd)/build-dist.sh"
+SRC=$(cd "$(dirname "$0")/.." && pwd)
+DIST="$SRC/scripts/build-dist.sh"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export DIST_TARGETS="linux/amd64 linux/armv6 windows/amd64"
@@ -18,8 +19,9 @@ cd "$TMP/a" || exit 1
 
 check "archives" "gmt-mail-1.2.3-linux-amd64.tar.gz gmt-mail-1.2.3-linux-armv6.tar.gz gmt-mail-1.2.3-windows-amd64.zip gmt-mail_1.2.3-1_amd64.deb gmt-mail_1.2.3-1_armhf.deb SHA256SUMS" "$(ls | sort -f | paste -sd' ')"
 check "checksums verify" "0" "$(sha256sum --quiet -c SHA256SUMS >/dev/null 2>&1; echo $?)"
-check "tar contents" "gmt-mail-1.2.3-linux-amd64/ gmt-mail-1.2.3-linux-amd64/LICENSE gmt-mail-1.2.3-linux-amd64/README.md gmt-mail-1.2.3-linux-amd64/assets/ gmt-mail-1.2.3-linux-amd64/assets/logo-dark.svg gmt-mail-1.2.3-linux-amd64/assets/logo.svg gmt-mail-1.2.3-linux-amd64/gmt-mail gmt-mail-1.2.3-linux-amd64/gmt-mail.1" \
-    "$(tar tzf gmt-mail-1.2.3-linux-amd64.tar.gz | paste -sd' ')"
+check "tar files" "$({ printf '%s\n' LICENSE gmt-mail gmt-mail.1; "$SRC/scripts/install-docs.sh" --list; } |
+    sed 's,^,gmt-mail-1.2.3-linux-amd64/,' | LC_ALL=C sort)" \
+    "$(tar tzf gmt-mail-1.2.3-linux-amd64.tar.gz | grep -v '/$' | LC_ALL=C sort)"
 check "zip has the logos" "gmt-mail-1.2.3-windows-amd64/assets/logo-dark.svg gmt-mail-1.2.3-windows-amd64/assets/logo.svg" \
     "$(unzip -Z1 gmt-mail-1.2.3-windows-amd64.zip | grep '\.svg$' | LC_ALL=C sort | paste -sd' ')"
 check "zip has the .exe" "gmt-mail-1.2.3-windows-amd64/gmt-mail.exe" \

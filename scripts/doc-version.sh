@@ -1,5 +1,5 @@
 #!/bin/bash
-# The release version in the download example of the README.
+# The release version in the download example of docs/install.md.
 #   doc-version.sh set X.Y.Z    rewrites it; run before tagging vX.Y.Z
 #   doc-version.sh check X.Y.Z  fails if it shows another version
 # Only the example's "V=<version>"; history ("after v0.10.0") stays. check also
@@ -8,7 +8,7 @@
 set -euo pipefail
 cd "${DOC_ROOT:-$(dirname "$0")/..}"
 
-FILES=(README.md)
+FILES=(docs/install.md)
 VER='[0-9]+\.[0-9]+\.[0-9]+'
 usage() {
     echo "usage: $0 set|check X.Y.Z" >&2

@@ -27,14 +27,14 @@ CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` and
 
 All targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `doc-version`, `test-release`, `test-pkg`, `image`, `push-image`, `test-image`, `publish`.
 
-A new flag also goes into the man page, `gmt-mail.1`, and the README's CLI
-reference. New behaviour comes with tests, and docs change in the same pull
-request.
+A new flag also goes into the man page, `gmt-mail.1`, and the CLI reference
+in `docs/usage.md`. New behaviour comes with tests, and docs change in the same
+pull request.
 
 ## Releasing
 
 The version is derived from the latest git tag — there is no `VERSION` to edit.
-Cut a release by setting the version of the README's download example (`make doc-version V=0.7.0`, then merge that change), creating and pushing a signed tag, then publishing everywhere:
+Cut a release by setting the version of the download example in `docs/install.md` (`make doc-version V=0.7.0`, then merge that change), creating and pushing a signed tag, then publishing everywhere:
 
     $ git tag -s v0.7.0 -m "v0.7.0"
     $ git push origin v0.7.0
@@ -44,7 +44,7 @@ Cut a release by setting the version of the README's download example (`make doc
 
 > **Note:** both package changelogs (the RPM `%changelog` and the Debian `debian/changelog`) are generated from `git log` between **GitHub releases**, so a version appears in them only once a GitHub *release* exists for its tag. `make publish` (and `make release`) create the release *before* building packages, so a full `make publish` yields complete changelogs — but building packages standalone (`make srpm`/`make copr`/`make ppa`) before the release exists will omit that version.
 
-Before it builds or uploads anything, `make release` runs `scripts/release-check.sh`: it stops unless the tree is clean, HEAD is the tag, the tag is `vMAJOR.MINOR.PATCH[-PRE]`, signed by the release key (`RELEASE_KEY`, default `753B6ECF2B458FF3D19D568C1E0A288397AE739E`) and the same tag object on GitHub, and HEAD is on `master` of GitHub. A stable tag also needs the README's download example at its version (`scripts/doc-version.sh check`). Then it runs `lint` and `test`. `make dist` checks that the release key signed `SHA256SUMS`. A tag with `-PRE` becomes a GitHub prerelease; `make publish` then skips COPR, PPA and Homebrew, and the changelogs and release notes of the next stable release start at the previous stable one. The release notes name the Go toolchain. `make test-release` runs the tests of these checks.
+Before it builds or uploads anything, `make release` runs `scripts/release-check.sh`: it stops unless the tree is clean, HEAD is the tag, the tag is `vMAJOR.MINOR.PATCH[-PRE]`, signed by the release key (`RELEASE_KEY`, default `753B6ECF2B458FF3D19D568C1E0A288397AE739E`) and the same tag object on GitHub, and HEAD is on `master` of GitHub. A stable tag also needs the download example in `docs/install.md` at its version (`scripts/doc-version.sh check`). Then it runs `lint` and `test`. `make dist` checks that the release key signed `SHA256SUMS`. A tag with `-PRE` becomes a GitHub prerelease; `make publish` then skips COPR, PPA and Homebrew, and the changelogs and release notes of the next stable release start at the previous stable one. The release notes name the Go toolchain. `make test-release` runs the tests of these checks.
 
 Individual targets are also available:
 
@@ -71,8 +71,10 @@ For a stable version (`X.Y.Z`), `make release` also checks the ghcr.io login fir
 
 `make test-ppa` runs the tests for that upload detection.
 
+The PPA source comes from the tag, but `debian/`, `deb-layout.sh` and `install-docs.sh` come from the checkout. So a tag that lacks a file in the `install-docs.sh` list can't be built for the PPA (`install-docs: no '…'`). v0.10.0 is such a tag, so new Ubuntu releases and `PPA_REV` rebuilds work again from the next tag on.
+
 `make copr` targets every Fedora release that is both released (final images on fedoraproject.org) and still maintained (Bodhi), so new Fedora releases are picked up automatically and enabled in the COPR project as needed. It builds only for the releases that don't have the tagged version yet and does nothing otherwise. Force a rebuild with `make copr COPR_FORCE=1`, or pick releases with `make copr COPR_CHROOTS="fedora-44-x86_64"`. `make test-copr` runs the tests for this logic.
 
 The man page `gmt-mail.1` carries `@VERSION@`/`@DATE@` placeholders in its `.TH` header. The RPM spec and the Debian rules fill them in from the package version and its changelog date, so every package (`make copr`, `make ppa`, `make publish`) ships a man page with its own version and release date, without a manual bump. `make man` renders it to `~/.cache/gmt-mail/man/gmt-mail.1` for viewing (`man -l ~/.cache/gmt-mail/man/gmt-mail.1`); `make test-man` checks the substitution.
 
-`make dist` cross-compiles the binaries with the official Go toolchain pinned in the Makefile (`RELEASE_GO`; bump it with Go patch releases), the same `-ldflags` as `make build`, plus `-trimpath`, and packs each with LICENSE, README and the man page into `~/.cache/gmt-mail/dist/<version>/`. A stable version (`X.Y.Z`) also gets a `.deb` per linux target (`scripts/deb.sh`, which needs `dpkg-deb`; Fedora: `sudo dnf install dpkg`), with the same files as the PPA package: both use `scripts/deb-layout.sh`. The archives are reproducible: the same tag built with the same Go version gives the same `SHA256SUMS` (the Go version is embedded in the binaries; for the `.deb` files, given the same `dpkg-deb` and xz versions). Signing `SHA256SUMS` uses `SIGNING_KEY` (default: git's `user.signingkey`). `make test-dist` runs its tests. `make dist DIST_TARGETS="linux/amd64"` limits the targets for a local build; a `DIST_TARGETS` environment variable is ignored, so a release always ships every target.
+`make dist` cross-compiles the binaries with the official Go toolchain pinned in the Makefile (`RELEASE_GO`; bump it with Go patch releases), the same `-ldflags` as `make build`, plus `-trimpath`, and packs each with LICENSE, the docs (`scripts/install-docs.sh`) and the man page into `~/.cache/gmt-mail/dist/<version>/`. A stable version (`X.Y.Z`) also gets a `.deb` per linux target (`scripts/deb.sh`, which needs `dpkg-deb`; Fedora: `sudo dnf install dpkg`), with the same files as the PPA package: both use `scripts/deb-layout.sh`. The archives are reproducible: the same tag built with the same Go version gives the same `SHA256SUMS` (the Go version is embedded in the binaries; for the `.deb` files, given the same `dpkg-deb` and xz versions). Signing `SHA256SUMS` uses `SIGNING_KEY` (default: git's `user.signingkey`). `make test-dist` runs its tests. `make dist DIST_TARGETS="linux/amd64"` limits the targets for a local build; a `DIST_TARGETS` environment variable is ignored, so a release always ships every target.

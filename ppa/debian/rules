@@ -23,10 +23,11 @@ override_dh_auto_test:
 
 override_dh_dwz:
 
-# keep README.md uncompressed so it renders with the logo in assets/
+# keep the docs uncompressed so their links work (images are never compressed)
 override_dh_compress:
-	dh_compress -X README.md
+	dh_compress -X.md
 
-# deb-layout.sh (copied here by build-ppa.sh) is shared with the release .deb.
+# deb-layout.sh and install-docs.sh (copied here by build-ppa.sh) are shared
+# with the release .deb.
 override_dh_auto_install:
 	bash debian/deb-layout.sh $(CURDIR)/debian/gmt-mail gmt-mail $(VERSION) $(MANDATE)

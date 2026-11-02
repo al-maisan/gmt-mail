@@ -41,9 +41,7 @@ install -Dpm 0755 gmt-mail %{buildroot}%{_bindir}/gmt-mail
 install -d %{buildroot}%{_mandir}/man1
 sed -e 's/@VERSION[@]/%{version}/g' -e "s/@DATE[@]/$(date -u -d @${SOURCE_DATE_EPOCH:-$(date +%%s)} +%%Y-%%m-%%d)/g" \
     gmt-mail.1 > %{buildroot}%{_mandir}/man1/gmt-mail.1
-install -Dpm 0644 .env.example %{buildroot}%{_docdir}/%{name}/.env.example
-install -Dpm 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
-install -Dpm 0644 -t %{buildroot}%{_docdir}/%{name}/assets assets/logo.svg assets/logo-dark.svg
+bash scripts/install-docs.sh %{buildroot}%{_docdir}/%{name}
 
 %files
 %license LICENSE

@@ -17,7 +17,7 @@ LABEL org.opencontainers.image.title="gmt-mail" \
 	org.opencontainers.image.created="${CREATED}" \
 	org.opencontainers.image.source="${SOURCE}" \
 	org.opencontainers.image.url="${SOURCE}" \
-	org.opencontainers.image.documentation="${SOURCE}#container-image" \
+	org.opencontainers.image.documentation="${SOURCE}/blob/master/docs/install.md#container-image" \
 	org.opencontainers.image.licenses="GPL-3.0-or-later"
 
 # The modes come from the context; COPY --chmod would also set them on the

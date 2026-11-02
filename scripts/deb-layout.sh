@@ -1,8 +1,8 @@
 #!/bin/bash
 # Install the files of the deb package under DEST: the binary, the man page and
-# the docs. Shared by ppa/debian/rules and scripts/deb.sh, so the PPA package and
-# the release .deb hold the same files. Run from the source tree; build-ppa.sh
-# copies this script into debian/, so the PPA also builds older tags.
+# the docs (install-docs.sh). Shared by ppa/debian/rules and scripts/deb.sh, so
+# the PPA package and the release .deb hold the same files. Run from the source
+# tree; build-ppa.sh copies this script and install-docs.sh into debian/.
 # Usage: deb-layout.sh DEST BINARY VERSION MAN_DATE
 set -euo pipefail
 
@@ -26,5 +26,4 @@ install -d "$(dirname "$MAN")"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$MAN_DATE/g" gmt-mail.1 >"$MAN"
 chmod 644 "$MAN"
 if grep -n '@[A-Z]*@' "$MAN" >&2; then die "placeholder left in gmt-mail.1"; fi
-install -Dpm 0644 -t "$DOC" .env.example README.md
-install -Dpm 0644 -t "$DOC/assets" assets/logo.svg assets/logo-dark.svg
+bash "$(dirname "$0")/install-docs.sh" "$DOC"

@@ -10,9 +10,10 @@ check() { # check NAME EXPECTED ACTUAL
 }
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+mkdir "$TMP/docs"
 dv() { DOC_ROOT=$TMP "$SRC/scripts/doc-version.sh" "$@" 2>/dev/null; }
 
-cat >"$TMP/README.md" <<'X'
+cat >"$TMP/docs/install.md" <<'X'
 Example for Linux amd64 (set `V` to the latest release):
     $ V=0.9.1 A=gmt-mail-$V-linux-amd64
 Releases after v0.10.0 also have `.deb` packages.
@@ -27,22 +28,22 @@ dv set 0.10.0
 check "set" 0 $?
 dv check 0.10.0
 check "set version passes" 0 $?
-check "README: example set, history kept" 'Example for Linux amd64 (set `V` to the latest release):
+check "example set, history kept" 'Example for Linux amd64 (set `V` to the latest release):
     $ V=0.10.0 A=gmt-mail-$V-linux-amd64
 Releases after v0.10.0 also have `.deb` packages.
-    $ sudo apt install ./gmt-mail_${V}-1_arm64.deb' "$(cat "$TMP/README.md")"
-printf 'V=1.3.2\nV=1.3.1.\nMYV=9.9.9 V=1.3.10\n' >"$TMP/README.md"
+    $ sudo apt install ./gmt-mail_${V}-1_arm64.deb' "$(cat "$TMP/docs/install.md")"
+printf 'V=1.3.2\nV=1.3.1.\nMYV=9.9.9 V=1.3.10\n' >"$TMP/docs/install.md"
 dv set 1.3.3
-check "set at a line end, before a dot, not in other names" "$(printf 'V=1.3.3\nV=1.3.3.\nMYV=9.9.9 V=1.3.3')" "$(cat "$TMP/README.md")"
+check "set at a line end, before a dot, not in other names" "$(printf 'V=1.3.3\nV=1.3.3.\nMYV=9.9.9 V=1.3.3')" "$(cat "$TMP/docs/install.md")"
 dv check 1.3.3
 check "check at a line end" 0 $?
-printf 'V=1.3.30\n' >"$TMP/README.md"
+printf 'V=1.3.30\n' >"$TMP/docs/install.md"
 dv check 1.3.3
 check "a longer version is another version" 1 $?
-: >"$TMP/README.md"
+: >"$TMP/docs/install.md"
 dv check 1.3.3
 check "no example at all fails" 1 $?
-rm "$TMP/README.md"
+rm "$TMP/docs/install.md"
 dv check 1.3.3
 check "a missing file fails" 1 $?
 dv set v1.3.2

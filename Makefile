@@ -47,7 +47,7 @@ IMAGE := ghcr.io/al-maisan/gmt-mail
 RELEASE_PUSH = $(if $(STABLE),&& $(MAKE) --no-print-directory push-image)
 # Prereleases (vX.Y.Z-PRE) are marked as such on GitHub.
 RELEASE_FLAGS = --verify-tag $(if $(findstring -,$(TAG)),--prerelease) \
-	--notes "Built with $(RELEASE_GO). Verify a download: see the README."
+	--notes "Built with $(RELEASE_GO). Verify a download: https://github.com/al-maisan/gmt-mail/blob/master/docs/install.md\#verify-a-download"
 # := ignores an ambient DIST_TARGETS, so a release always ships every target.
 DIST_TARGETS := linux/amd64 linux/arm64 linux/armv6 darwin/amd64 darwin/arm64 windows/amd64
 # A stable version also gets a .deb per linux target (armv6 is Debian's armhf).
@@ -145,7 +145,7 @@ dist:
 		|| { echo "dist: SHA256SUMS.asc is not signed by the release key" >&2; exit 1; }
 	@echo "dist: signed $(DIST_DIR)/SHA256SUMS.asc"
 
-# Sets the version of the README's download example: make doc-version V=1.2.3,
+# Sets the version of the download example in docs/install.md: make doc-version V=1.2.3,
 # before tagging v1.2.3. `make release` refuses a stale one.
 doc-version:
 	scripts/doc-version.sh set '$(V)'
@@ -169,6 +169,7 @@ test-image:
 test-dist:
 	scripts/build-dist_test.sh
 	scripts/deb_test.sh
+	scripts/install-docs_test.sh
 
 srpm: vendor gen-spec
 	mkdir -p $(RPMBUILD_DIR)/{SOURCES,SPECS,SRPMS}

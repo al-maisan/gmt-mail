@@ -30,15 +30,10 @@ check "description from ppa/debian/control" "$(sed -n '/^Description:/,$p' "$SRC
 LIST=$(dpkg-deb -c "$TMP/a.deb" | awk '{ print $2, $6 }')
 check "owned by root" "root/root" "$(awk '{ print $1 }' <<<"$LIST" | sort -u)"
 check "mtime" "$(date -u -d "@$MTIME" '+%Y-%m-%d %H:%M')" "$(TZ=UTC dpkg-deb -c "$TMP/a.deb" | awk '{ print $4, $5 }' | sort -u)"
-check "files" "./usr/bin/gmt-mail
-./usr/share/doc/gmt-mail/.env.example
-./usr/share/doc/gmt-mail/README.md
-./usr/share/doc/gmt-mail/assets/logo-dark.svg
-./usr/share/doc/gmt-mail/assets/logo.svg
-./usr/share/doc/gmt-mail/changelog.Debian.gz
-./usr/share/doc/gmt-mail/copyright
-./usr/share/lintian/overrides/gmt-mail
-./usr/share/man/man1/gmt-mail.1.gz" "$(dpkg-deb -c "$TMP/a.deb" | awk '$1 !~ /^d/ { print $6 }' | LC_ALL=C sort)"
+check "files" "$({ printf '%s\n' ./usr/bin/gmt-mail ./usr/share/doc/gmt-mail/changelog.Debian.gz \
+    ./usr/share/doc/gmt-mail/copyright ./usr/share/lintian/overrides/gmt-mail ./usr/share/man/man1/gmt-mail.1.gz
+    "$SRC/scripts/install-docs.sh" --list | sed 's,^,./usr/share/doc/gmt-mail/,'; } | LC_ALL=C sort)" \
+    "$(dpkg-deb -c "$TMP/a.deb" | awk '$1 !~ /^d/ { print $6 }' | LC_ALL=C sort)"
 
 dpkg-deb -R "$TMP/a.deb" "$TMP/x"
 check "binary mode" "755" "$(stat -c %a "$TMP/x/usr/bin/gmt-mail")"
