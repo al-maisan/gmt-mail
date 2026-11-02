@@ -58,7 +58,7 @@ DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
 
-.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man test-release test-pkg image push-image test-image
+.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man doc-version test-release test-pkg image push-image test-image
 
 all: test lint build
 
@@ -145,6 +145,11 @@ dist:
 		|| { echo "dist: SHA256SUMS.asc is not signed by the release key" >&2; exit 1; }
 	@echo "dist: signed $(DIST_DIR)/SHA256SUMS.asc"
 
+# Sets the version of the README's download example: make doc-version V=1.2.3,
+# before tagging v1.2.3. `make release` refuses a stale one.
+doc-version:
+	scripts/doc-version.sh set '$(V)'
+
 # Multi-arch container image of the archives in DIST_DIR (make dist), as an OCI
 # layout in IMAGE_DIR and as localhost/gmt-mail:$(TAG). Needs podman or docker.
 image:
@@ -221,6 +226,7 @@ test-brew:
 
 test-release:
 	scripts/release-check_test.sh
+	scripts/doc-version_test.sh
 	scripts/push-image_test.sh
 	scripts/make-recipes_test.sh
 
