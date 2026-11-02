@@ -10,6 +10,9 @@
 # DIST_TARGETS="linux/amd64 ..." overrides the target list.
 set -euo pipefail
 
+# Same output whatever the caller's environment says.
+export CGO_ENABLED=0 GOAMD64=v1 GOARM64=v8.0 GOFLAGS='' GOEXPERIMENT=''
+
 TARGETS=${DIST_TARGETS:-"linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"}
 
 if [ $# -ne 4 ]; then
