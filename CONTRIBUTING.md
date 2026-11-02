@@ -54,7 +54,7 @@ Individual targets are also available:
 | `dist`    | Build the release archives with the pinned Go toolchain + `SHA256SUMS` and sign it (needs a clean checkout of the tag) |
 | `release` | Tag + checks + `lint` + `test` + `dist` + create the GitHub release with the archives (uploads them to an existing release that has none) |
 | `srpm`    | Build a source RPM                             |
-| `copr`    | Build SRPM + submit to Fedora COPR for every supported Fedora that lacks this version |
+| `copr`    | Build SRPM + submit to Fedora COPR for every supported Fedora and arch (x86_64, aarch64) that lacks this version |
 | `ppa`     | Tag + build and upload to Ubuntu PPA (skips Ubuntu releases that already have this version) |
 | `image`   | Build the container image of the `dist` archives (podman or docker) |
 | `push-image` | Rebuild the image from the signed assets of the GitHub release and push it to `ghcr.io/al-maisan/gmt-mail` |
@@ -65,7 +65,7 @@ For a stable version (`X.Y.Z`), `make release` also checks the ghcr.io login fir
 
 `make brew` clones the tap, sets the formula's `url` and `sha256` to the tagged source archive, commits and pushes over SSH (`BREW_TAP_URL` overrides the remote; with signed commits that is two key touches). It never moves the formula to an older version. The formula builds from source, so it needs no release binaries. `make test-brew` runs its tests.
 
-`make ppa` asks Launchpad what is already uploaded and does nothing for an Ubuntu release that already has the tagged version, so re-running it without a new tag publishes nothing. If only PPA packaging files changed, force a rebuild with the next PPA revision:
+`make ppa` asks Launchpad what is already uploaded and does nothing for an Ubuntu release that already has the tagged version, so re-running it without a new tag publishes nothing. It asks with `Cache-Control: no-cache`: Launchpad's API cache can be minutes old and miss a fresh upload. A rebuild reuses the uploaded orig tarball; a first upload builds it with `scripts/src-tarball.sh`, which gives the same tarball for the same tag (fixed file order, owner, modes and times, no gzip timestamp), so it matches an upload it missed. If only PPA packaging files changed, force a rebuild with the next PPA revision:
 
     $ make ppa PPA_REV=2
 
@@ -73,7 +73,7 @@ For a stable version (`X.Y.Z`), `make release` also checks the ghcr.io login fir
 
 The PPA source comes from the tag, but `debian/`, `deb-layout.sh` and `install-docs.sh` come from the checkout. So a tag that lacks a file in the `install-docs.sh` list can't be built for the PPA (`install-docs: no '…'`). v0.10.0 is such a tag, so new Ubuntu releases and `PPA_REV` rebuilds work again from the next tag on.
 
-`make copr` targets every Fedora release that is both released (final images on fedoraproject.org) and still maintained (Bodhi), so new Fedora releases are picked up automatically and enabled in the COPR project as needed. It builds only for the releases that don't have the tagged version yet and does nothing otherwise. Force a rebuild with `make copr COPR_FORCE=1`, or pick releases with `make copr COPR_CHROOTS="fedora-44-x86_64"`. `make test-copr` runs the tests for this logic.
+`make copr` targets every Fedora release that is both released (final images on fedoraproject.org) and still maintained (Bodhi), on x86_64 and aarch64 (`ARCHES` in `scripts/copr-build.sh`), so new Fedora releases are picked up automatically and enabled in the COPR project as needed. It builds only for the releases that don't have the tagged version yet and does nothing otherwise. Force a rebuild with `make copr COPR_FORCE=1`, or pick releases with `make copr COPR_CHROOTS="fedora-44-x86_64"`. `make test-copr` runs the tests for this logic.
 
 The man page `gmt-mail.1` carries `@VERSION@`/`@DATE@` placeholders in its `.TH` header. The RPM spec and the Debian rules fill them in from the package version and its changelog date, so every package (`make copr`, `make ppa`, `make publish`) ships a man page with its own version and release date, without a manual bump. `make man` renders it to `~/.cache/gmt-mail/man/gmt-mail.1` for viewing (`man -l ~/.cache/gmt-mail/man/gmt-mail.1`); `make test-man` checks the substitution.
 

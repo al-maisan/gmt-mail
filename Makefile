@@ -216,6 +216,7 @@ ppa: tag vendor
 
 test-ppa:
 	ppa/build-ppa_test.sh
+	scripts/src-tarball_test.sh
 
 # Bumps the Homebrew formula in al-maisan/homebrew-tap to this version (no-op if
 # it is already there); needs the tag on GitHub.

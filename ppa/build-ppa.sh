@@ -40,13 +40,20 @@ next_rev() {
     echo $(( ${top:-0} + 1 ))
 }
 
+# lp_sources: print Launchpad's JSON list of this PPA's gmt-mail uploads.
+# Anonymous API reads go through a cache that can be many minutes old and miss a
+# fresh upload, which then looks absent; no-cache asks Launchpad itself.
+lp_sources() {
+    curl -fsS -H 'Cache-Control: no-cache' \
+        "https://api.launchpad.net/1.0/~${LP_USER}/+archive/ubuntu/${LP_PPA}?ws.op=getPublishedSources&source_name=gmt-mail&exact_match=true"
+}
+
 # The functions above are sourced by build-ppa_test.sh; stop here in that case.
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
 
 # Ask Launchpad what is already uploaded for this version. Fail loudly: guessing
 # "nothing uploaded" would build a fresh orig that Launchpad then rejects.
-LP_JSON=$(curl -fsS "https://api.launchpad.net/1.0/~${LP_USER}/+archive/ubuntu/${LP_PPA}?ws.op=getPublishedSources&source_name=gmt-mail&exact_match=true") \
-    || { echo "Error: cannot query Launchpad for existing uploads" >&2; exit 1; }
+LP_JSON=$(lp_sources) || { echo "Error: cannot query Launchpad for existing uploads" >&2; exit 1; }
 UPLOADED=$(uploaded_versions "$VERSION" <<<"$LP_JSON")
 
 # Without an explicit revision, skip releases that already have this version, so an
@@ -88,24 +95,20 @@ mkdir -p "$BUILD_DIR"
 ORIG="gmt-mail_${VERSION}.orig.tar.gz"
 cd "$BUILD_DIR"
 
-# Launchpad requires one immutable orig tarball per upstream version. The tarball
-# is not byte-reproducible (vendor mtimes + gzip timestamp vary per run), so on a
-# rebuild we must reuse the already-published orig rather than regenerate it —
-# otherwise the .dsc checksums won't match Launchpad's stored copy and the upload
-# is rejected.
+# Launchpad requires one immutable orig tarball per upstream version, so a rebuild
+# reuses the published one. src-tarball.sh gives the same tarball for the same tag,
+# so a first upload that missed an earlier one still matches it; origs of tags
+# before src-tarball.sh (v0.11.0 and older) were not built that way.
 if [ -n "$UPLOADED" ]; then
     echo "Reusing published orig tarball for ${VERSION} (ppa${PPA_REV} rebuild)"
     curl -fSL -o "$ORIG" \
         "https://launchpad.net/~${LP_USER}/+archive/ubuntu/${LP_PPA}/+files/${ORIG}"
     tar xzf "$ORIG"
 else
-    # First upload of this version: build the orig from the tag and add vendored
-    # dependencies (not in git), then repack so the orig is self-contained.
-    git -C "$SRC_DIR" archive --format=tar.gz --prefix="gmt-mail-${VERSION}/" "$TAG" \
-        -o "$BUILD_DIR/$ORIG"
+    # First upload of this version: the orig from the tag, with the vendored
+    # modules (not in git), so it is self-contained.
+    "$SRC_DIR/scripts/src-tarball.sh" "$TAG" "$BUILD_DIR/$ORIG"
     tar xzf "$ORIG"
-    ( cd "gmt-mail-${VERSION}" && (go mod vendor 2>/dev/null || GOTOOLCHAIN=local go mod vendor) )
-    tar czf "$ORIG" "gmt-mail-${VERSION}"
 fi
 
 SIGN_FLAG=""

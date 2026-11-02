@@ -26,7 +26,7 @@ From the [PPA](https://launchpad.net/~al-maisan/+archive/ubuntu/gmt-mail):
 
 ## Fedora COPR
 
-From [COPR](https://copr.fedorainfracloud.org/coprs/al-maisan/gmt-mail/):
+From [COPR](https://copr.fedorainfracloud.org/coprs/al-maisan/gmt-mail/), x86_64 and aarch64:
 
     $ sudo dnf copr enable al-maisan/gmt-mail
     $ sudo dnf install gmt-mail
