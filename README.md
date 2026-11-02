@@ -120,6 +120,15 @@ It installs the same files as the PPA package. Updates are by hand: install the 
     $ sudo dnf copr enable al-maisan/gmt-mail
     $ sudo dnf install gmt-mail
 
+### Container image
+
+`ghcr.io/al-maisan/gmt-mail` for linux/amd64, linux/arm64 and linux/arm/v6, built from the release archives (releases after v0.10.0). Mount the directory with your config, template, attachments and `.env` at `/work` and run as your own user, so gmt-mail can read the files:
+
+    $ podman run --rm --userns=keep-id --user "$(id -u):$(id -g)" -v "$PWD:/work:Z" \
+        ghcr.io/al-maisan/gmt-mail -dry-run -config-path config.toml -template-path template.eml
+
+With docker, drop `--userns=keep-id` and `:Z`. Paths in the config (e.g. attachments) must be inside `/work`.
+
 ### With Go
 
 Requires [Go](https://go.dev/) 1.26 or later.
@@ -137,7 +146,7 @@ Requires [Go](https://go.dev/) 1.26 or later.
     $ make build
     $ ./gmt-mail -h
 
-The Makefile embeds the version, git commit hash, and build date into the binary. CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` (the tests of the packaging and release scripts) and `make build` on every pull request. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `test-release`, `test-pkg`, `publish`.
+The Makefile embeds the version, git commit hash, and build date into the binary. CI runs `make vet`, golangci-lint, `make test`, `make test-pkg` (the tests of the packaging and release scripts) and `make build` on every pull request. Targets: `all`, `build`, `test`, `vet`, `lint`, `fmt`, `install`, `vendor`, `clean`, `srpm`, `copr`, `ppa`, `test-ppa`, `test-copr`, `man`, `test-man`, `tag`, `dist`, `test-dist`, `release`, `brew`, `test-brew`, `test-release`, `test-pkg`, `image`, `push-image`, `test-image`, `publish`.
 
 ## Quick start
 
@@ -331,8 +340,12 @@ Individual targets are also available:
 | `srpm`    | Build a source RPM                             |
 | `copr`    | Build SRPM + submit to Fedora COPR for every supported Fedora that lacks this version |
 | `ppa`     | Tag + build and upload to Ubuntu PPA (skips Ubuntu releases that already have this version) |
+| `image`   | Build the container image of the `dist` archives (podman or docker) |
+| `push-image` | Rebuild the image from the signed assets of the GitHub release and push it to `ghcr.io/al-maisan/gmt-mail` |
 | `brew`    | Bump the formula in [al-maisan/homebrew-tap](https://github.com/al-maisan/homebrew-tap) to this version and push it (no-op if it is already there) |
 | `publish` | All of the above                               |
+
+For a stable version (`X.Y.Z`), `make release` also checks the ghcr.io login first, builds the container image from the archives (`scripts/image.sh`) before the GitHub release and pushes it after (`make push-image`, `scripts/push-image.sh`). The push rebuilds the image from the linux archives of the GitHub release, checked against its `SHA256SUMS` signed by the release key, pushes it as `vX.Y.Z` with `skopeo` and checks the pushed digest. `latest` moves only if the tag is the highest stable tag on GitHub. This needs podman (or docker), skopeo and a login: `podman login ghcr.io -u al-maisan` with a personal access token (classic) that has `write:packages`. If only the push fails, fix the cause and run `git checkout vX.Y.Z && make push-image VERSION=X.Y.Z`; it can be rerun at any time, and a rerun of `make release` pushes the image if the release exists but the image does not. After the first push, make the package public in its settings on GitHub, once. The image is reproducible: the same archives and commit give the same digest. The CA certificates are pinned by URL and hash in `scripts/image.sh`; update both from time to time. `make test-image` builds and runs a test image.
 
 `make brew` clones the tap, sets the formula's `url` and `sha256` to the tagged source archive, commits and pushes over SSH (`BREW_TAP_URL` overrides the remote; with signed commits that is two key touches). It never moves the formula to an older version. The formula builds from source, so it needs no release binaries. `make test-brew` runs its tests.
 
