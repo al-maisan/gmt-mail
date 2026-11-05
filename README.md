@@ -65,6 +65,7 @@ Drop `-dry-run` to send. The demo's files are in [`docs/demo/`](docs/demo/).
 - **Safe to run.** `-validate` checks the config, the addresses, the attachments and every placeholder before anything is sent. `-dry-run` prints every message. Unknown config keys and leftover `%KEY%` placeholders are errors, not silent mistakes.
 - **Secure by default.** TLS is mandatory (STARTTLS, or implicit TLS on port 465), with no plaintext fallback. The password comes from the environment and is never logged.
 - **Personal, not a newsletter.** Each person gets a normal email from your own address, with per-recipient Cc and attachments. Replies come back to you.
+- **Plain text or Markdown.** With `-markdown` each message carries the Markdown as text plus an HTML rendering, so links, bold text and lists show up.
 - **Robust sending.** Retries, reconnects when the server drops the connection, an optional delay between messages, and a summary with a clear exit code.
 
 It is meant for tens to a few hundred personal messages, not for newsletters. See [how it compares](docs/comparison.md) with mail-merge scripts, Thunderbird and Mailchimp.

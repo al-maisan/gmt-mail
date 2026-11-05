@@ -53,6 +53,10 @@ Files: vendor/github.com/wneessen/go-mail/smtp/*
 Copyright: 2009 The Go Authors
 License: BSD-3-Clause
 
+Files: vendor/github.com/yuin/goldmark/*
+Copyright: 2019 Yusuke Inuzuka
+License: Expat
+
 Files: vendor/gopkg.in/yaml.v3/*
 Copyright: 2011-2019 Canonical Ltd.
 License: Apache-2.0
