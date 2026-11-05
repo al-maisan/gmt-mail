@@ -37,7 +37,7 @@ From [COPR](https://copr.fedorainfracloud.org/coprs/al-maisan/gmt-mail/), x86_64
 
 Example for Linux amd64 (set `V` to the latest release):
 
-    $ V=0.11.1 A=gmt-mail-$V-linux-amd64
+    $ V=0.12.0 A=gmt-mail-$V-linux-amd64
     $ U=https://github.com/al-maisan/gmt-mail/releases/download/v$V
     $ curl -LO $U/$A.tar.gz -LO $U/SHA256SUMS -LO $U/SHA256SUMS.asc
     $ curl -s https://github.com/al-maisan.gpg | gpg --import
