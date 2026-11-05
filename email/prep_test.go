@@ -114,6 +114,22 @@ func TestPrepMailsPerRecipientOverrides(t *testing.T) {
 			wantCc:    []string{"cc1@example.com", "cc2@example.com"},
 		},
 		{
+			name:      "cc deduped case-insensitively, first spelling kept",
+			globalCc:  []string{"a@x.org"},
+			recipient: config.Recipient{Email: "s@x.org", First: "S", CcExtra: []string{"a@x.org", "A@X.ORG", "\"Ann\" <a@x.org>", "b@x.org"}},
+			wantCc:    []string{"a@x.org", "b@x.org"},
+		},
+		{
+			name:      "recipient not cc'd on own mail",
+			globalCc:  []string{"S@X.org", "a@x.org"},
+			recipient: config.Recipient{Email: "s@x.org", First: "S", CcExtra: []string{"Sam <s@x.org>"}},
+			wantCc:    []string{"a@x.org"},
+		},
+		{
+			name:      "cc only the recipient: none left",
+			recipient: config.Recipient{Email: "s@x.org", First: "S", Cc: []string{"s@x.org"}},
+		},
+		{
 			name:            "attachment replace",
 			globalAttach:    []string{"global.txt"},
 			recipient:       config.Recipient{Email: "a@b.com", First: "A", Last: "B", Attachments: []string{"local.txt"}},
@@ -168,6 +184,21 @@ func TestPrepMailsUnresolvedPlaceholders(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "%DEPT%")
 	assert.Contains(t, err.Error(), "%ROLE%")
+}
+
+func TestPrepMailsBlankAfterSubstitution(t *testing.T) {
+	cfg := config.MailConfig{
+		Subject: "%LN%",
+		Recipients: []config.Recipient{
+			{Email: "a@b.com", First: "Alice", Data: map[string]string{"NOTE": " "}},
+			{Email: "c@d.com", First: "Carl", Last: "Doe", Data: map[string]string{"NOTE": "hi"}},
+		},
+	}
+	_, err := PrepMails(&cfg, "%NOTE%")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recipient 'a@b.com': subject is blank after substitution")
+	assert.Contains(t, err.Error(), "recipient 'a@b.com': body is blank after substitution")
+	assert.NotContains(t, err.Error(), "c@d.com")
 }
 
 func TestPrepMailsNoErrorWhenAllResolved(t *testing.T) {

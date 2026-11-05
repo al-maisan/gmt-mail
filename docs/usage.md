@@ -46,7 +46,7 @@ The config file uses [TOML](https://toml.io/) with a `[general]` section and one
 | Key                 | Required | Description                                    |
 |---------------------|----------|------------------------------------------------|
 | `email`             | yes      | Recipient address                              |
-| `first`             | yes      | First name                                     |
+| `first`             | yes      | First name (not blank)                         |
 | `last`              | no       | Last name                                      |
 | `data`              | no       | Custom key-value pairs for template variables  |
 | `cc`                | no       | Replaces the global Cc for this recipient      |
@@ -54,7 +54,7 @@ The config file uses [TOML](https://toml.io/) with a `[general]` section and one
 | `attachments`       | no       | Replaces the global attachments for this recipient |
 | `attachments_extra` | no       | Is added to the global attachments for this recipient |
 
-Each `email` must be unique. A recipient may set `cc` or `cc_extra`, not both (same for `attachments` and `attachments_extra`). Attachments must be readable regular files.
+Each `email` must be unique. A recipient's Cc never lists the same address twice (compared case-insensitively) or the recipient's own address. A recipient may set `cc` or `cc_extra`, not both (same for `attachments` and `attachments_extra`). Attachments must be readable regular files.
 
 Example:
 
@@ -91,7 +91,7 @@ Placeholders work in the subject and the body:
 | `%EA%`      | Email address                      |
 | `%KEY%`     | Any custom key from `data`         |
 
-Custom keys start with a letter and hold only letters, digits and `_`. They are matched in **uppercase**: use `%ROLE%`, not `%role%`. So two keys that differ only in case (e.g. `url` and `URL`) are rejected, and a custom key may not be `EA`, `FN` or `LN`. A placeholder that no value fills is an error.
+Custom keys start with a letter and hold only letters, digits and `_`. They are matched in **uppercase**: use `%ROLE%`, not `%role%`. So two keys that differ only in case (e.g. `url` and `URL`) are rejected, and a custom key may not be `EA`, `FN` or `LN`. A placeholder that no value fills is an error, and so is a subject or body that is blank after substitution (e.g. `subject = "%LN%"` for a recipient without `last`).
 
 Example template:
 
