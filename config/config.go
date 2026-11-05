@@ -81,10 +81,36 @@ type MailConfig struct {
 
 // Parse decodes TOML-formatted configuration bytes into a MailConfig.
 func Parse(bs []byte) (MailConfig, error) {
+	tc, err := parseGeneral(bs, false)
+	if err != nil {
+		return MailConfig{}, err
+	}
+	recipients, err := convertRecipients(tc.Recipients)
+	if err != nil {
+		return MailConfig{}, err
+	}
+	cfg := newMailConfig(tc.General)
+	cfg.Recipients = recipients
+	return cfg, nil
+}
+
+// ParseGeneral decodes a config whose recipients come from a CSV file (see
+// ParseCSV): it must have no [[recipients]], and the result has none.
+func ParseGeneral(bs []byte) (MailConfig, error) {
+	tc, err := parseGeneral(bs, true)
+	if err != nil {
+		return MailConfig{}, err
+	}
+	return newMailConfig(tc.General), nil
+}
+
+// parseGeneral decodes and validates bs; the [[recipients]] are only checked
+// against the struct tags, or must be absent if csv is set.
+func parseGeneral(bs []byte, csv bool) (tomlConfig, error) {
 	var tc tomlConfig
 	md, err := toml.Decode(string(bs), &tc)
 	if err != nil {
-		return MailConfig{}, fmt.Errorf("TOML syntax error: %w", err)
+		return tc, fmt.Errorf("TOML syntax error: %w", err)
 	}
 	// A misspelled key (e.g. "atachments") would otherwise be silently dropped.
 	if undecoded := md.Undecoded(); len(undecoded) > 0 {
@@ -92,36 +118,37 @@ func Parse(bs []byte) (MailConfig, error) {
 		for i, k := range undecoded {
 			keys[i] = k.String()
 		}
-		return MailConfig{}, fmt.Errorf("unknown key(s): %s", strings.Join(keys, ", "))
+		return tc, fmt.Errorf("unknown key(s): %s", strings.Join(keys, ", "))
 	}
 
-	if err := validate.Struct(tc); err != nil {
-		return MailConfig{}, formatValidationError(err)
+	if csv {
+		if len(tc.Recipients) > 0 {
+			return tc, fmt.Errorf("[[recipients]] must not be set when the recipients come from a CSV file")
+		}
+		err = validate.StructExcept(tc, "Recipients")
+	} else {
+		err = validate.Struct(tc)
+	}
+	if err != nil {
+		return tc, formatValidationError(err)
 	}
 
 	if strings.TrimSpace(tc.General.Subject) == "" {
-		return MailConfig{}, fmt.Errorf("subject must not be empty or whitespace")
+		return tc, fmt.Errorf("subject must not be empty or whitespace")
 	}
 
-	if err := checkGeneralAddresses(tc.General); err != nil {
-		return MailConfig{}, err
-	}
+	return tc, checkGeneralAddresses(tc.General)
+}
 
-	recipients, err := convertRecipients(tc.Recipients)
-	if err != nil {
-		return MailConfig{}, err
+// newMailConfig returns a MailConfig with the [general] values and no recipients.
+func newMailConfig(g tomlGeneral) MailConfig {
+	return MailConfig{
+		From:        g.From,
+		Subject:     g.Subject,
+		ReplyTo:     g.ReplyTo,
+		Cc:          g.Cc,
+		Attachments: g.Attachments,
 	}
-
-	cfg := MailConfig{
-		From:        tc.General.From,
-		Subject:     tc.General.Subject,
-		ReplyTo:     tc.General.ReplyTo,
-		Cc:          tc.General.Cc,
-		Attachments: tc.General.Attachments,
-		Recipients:  recipients,
-	}
-
-	return cfg, nil
 }
 
 // formatValidationError converts validator errors into user-friendly messages.
@@ -200,6 +227,10 @@ func checkRecipient(e tomlRecipient) error {
 	if a, err := mail.ParseAddress(e.Email); err != nil || a.Name != "" || a.Address != e.Email {
 		return fmt.Errorf("recipient %q: email must be a bare address", e.Email)
 	}
+	// Parse checks this via the struct tag; ParseCSV relies on it here.
+	if validate.Var(e.Email, "email") != nil {
+		return fmt.Errorf("recipient %q: invalid email address", e.Email)
+	}
 	// "required" accepts " ", which would give an empty name and greeting.
 	if strings.TrimSpace(e.First) == "" {
 		return fmt.Errorf("recipient %q: 'first' must not be blank", e.Email)
@@ -220,55 +251,76 @@ func checkRecipient(e tomlRecipient) error {
 }
 
 // convertRecipients transforms TOML recipient entries into Recipient structs.
-// Data keys are upper-cased to match %KEY% placeholders; it returns an error if
-// a key is malformed, two keys collide after folding, or a key collides with a
-// reserved placeholder, since these would silently drop or nondeterministically
-// pick a value. Duplicate recipient addresses are rejected to avoid double sends.
 func convertRecipients(entries []tomlRecipient) ([]Recipient, error) {
 	recipients := make([]Recipient, 0, len(entries))
 	seen := make(map[string]struct{}, len(entries))
-
 	for _, e := range entries {
-		if err := checkRecipient(e); err != nil {
+		r, err := convertRecipient(e, seen)
+		if err != nil {
 			return nil, err
 		}
-		addr := strings.ToLower(e.Email)
-		if _, dup := seen[addr]; dup {
-			return nil, fmt.Errorf("duplicate recipient %q", e.Email)
-		}
-		seen[addr] = struct{}{}
-
-		data := make(map[string]string, len(e.Data))
-		for k, v := range e.Data {
-			if !reDataKey.MatchString(k) {
-				return nil, fmt.Errorf("recipient %q: invalid data key %q: must start with a letter and contain only letters, digits and '_'", e.Email, k)
-			}
-			key := strings.ToUpper(k)
-			if _, ok := reservedDataKeys[key]; ok {
-				return nil, fmt.Errorf("recipient %q: data key %q collides with reserved placeholder %%%s%%", e.Email, k, key)
-			}
-			if _, ok := data[key]; ok {
-				return nil, fmt.Errorf("recipient %q: data keys collide after upper-casing to %q", e.Email, key)
-			}
-			data[key] = v
-		}
-
-		recipients = append(recipients, Recipient{
-			Email:            e.Email,
-			First:            e.First,
-			Last:             e.Last,
-			Data:             data,
-			Cc:               e.Cc,
-			CcExtra:          e.CcExtra,
-			Attachments:      e.Attachments,
-			AttachmentsExtra: e.AttachmentsExtra,
-		})
+		recipients = append(recipients, r)
 	}
 	return recipients, nil
 }
 
+// convertRecipient checks e and converts it into a Recipient. Data keys are
+// upper-cased to match %KEY% placeholders; it returns an error if two keys
+// collide after folding, since that would nondeterministically pick a value.
+// Duplicate recipient addresses (tracked in seen) are rejected to avoid double
+// sends.
+func convertRecipient(e tomlRecipient, seen map[string]struct{}) (Recipient, error) {
+	if err := checkRecipient(e); err != nil {
+		return Recipient{}, err
+	}
+	addr := strings.ToLower(e.Email)
+	if _, dup := seen[addr]; dup {
+		return Recipient{}, fmt.Errorf("duplicate recipient %q", e.Email)
+	}
+	seen[addr] = struct{}{}
+
+	data := make(map[string]string, len(e.Data))
+	for k, v := range e.Data {
+		key, err := dataKey(k)
+		if err != nil {
+			return Recipient{}, fmt.Errorf("recipient %q: %w", e.Email, err)
+		}
+		if _, ok := data[key]; ok {
+			return Recipient{}, fmt.Errorf("recipient %q: data keys collide after upper-casing to %q", e.Email, key)
+		}
+		data[key] = v
+	}
+
+	return Recipient{
+		Email:            e.Email,
+		First:            e.First,
+		Last:             e.Last,
+		Data:             data,
+		Cc:               e.Cc,
+		CcExtra:          e.CcExtra,
+		Attachments:      e.Attachments,
+		AttachmentsExtra: e.AttachmentsExtra,
+	}, nil
+}
+
+// dataKey returns k upper-cased, or an error if k is malformed or collides
+// with a reserved placeholder (whose value it would silently shadow).
+func dataKey(k string) (string, error) {
+	if !reDataKey.MatchString(k) {
+		return "", fmt.Errorf("invalid data key %q: must start with a letter and contain only letters, digits and '_'", k)
+	}
+	key := strings.ToUpper(k)
+	if _, ok := reservedDataKeys[key]; ok {
+		return "", fmt.Errorf("data key %q collides with reserved placeholder %%%s%%", k, key)
+	}
+	return key, nil
+}
+
 //go:embed samples/config.toml
 var sampleConfigContent string
+
+//go:embed samples/recipients.csv
+var sampleCSVContent string
 
 //go:embed samples/template.eml
 var sampleTemplateContent string
@@ -276,6 +328,11 @@ var sampleTemplateContent string
 // SampleConfig returns a commented example configuration file.
 func SampleConfig(version string) string {
 	return "# gmt-mail version " + version + "\n" + sampleConfigContent
+}
+
+// SampleCSV returns an example recipients CSV file (see ParseCSV).
+func SampleCSV() string {
+	return strings.TrimRight(sampleCSVContent, "\n")
 }
 
 // SampleTemplate returns an example email template demonstrating placeholder usage.

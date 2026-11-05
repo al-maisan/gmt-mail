@@ -9,6 +9,8 @@ gmt\-mail \- send personalized emails in bulk using a template and a configurati
 .IR duration ]
 .B \-config\-path
 .I file
+.RB [ \-recipients\-path
+.IR file.csv ]
 .B \-template\-path
 .I file
 .br
@@ -26,11 +28,15 @@ gmt\-mail \- send personalized emails in bulk using a template and a configurati
 .B \-sample\-template
 .br
 .B gmt\-mail
+.B \-sample\-csv
+.br
+.B gmt\-mail
 .B \-version
 .SH DESCRIPTION
 .B gmt\-mail
 (Go Mailing Tool) sends personalized emails in bulk.
-It reads a list of recipients and mail metadata from a TOML configuration file,
+It reads a list of recipients and mail metadata from a TOML configuration file
+(or the recipients from a CSV file),
 substitutes per-recipient variables into an email template, and sends the
 resulting messages via SMTP with mandatory TLS encryption.
 .PP
@@ -42,13 +48,31 @@ allowing review before committing to delivery.
 Path to the TOML configuration file. Required unless using
 .BR \-sample\-config ,
 .BR \-sample\-template ,
+.BR \-sample\-csv ,
 or
 .BR \-version .
+.TP
+.BI \-recipients\-path " file.csv"
+Read the recipients from a CSV file instead of the
+.B [[recipients]]
+entries, which the configuration file must then not have (see
+.BR "RECIPIENTS CSV FILE" ).
+.TP
+.B \-csv\-attachments
+Allow the
+.B attachments
+and
+.B attachments_extra
+columns in the
+.B \-recipients\-path
+file. Off by default: a CSV from someone else could otherwise attach any of
+your files to a mail for any address.
 .TP
 .BI \-template\-path " file"
 Path to the email template file. Required unless using
 .BR \-sample\-config ,
 .BR \-sample\-template ,
+.BR \-sample\-csv ,
 or
 .BR \-version .
 .TP
@@ -93,6 +117,9 @@ Print a sample configuration file to standard output and exit.
 .TP
 .B \-sample\-template
 Print a sample email template to standard output and exit.
+.TP
+.B \-sample\-csv
+Print a sample recipients CSV file to standard output and exit.
 .TP
 .B \-version
 Print the version string and exit.
@@ -193,6 +220,54 @@ data = { ROLE = "Knight" }
 cc = ["merry@shire.org"]
 .fi
 .RE
+.SH RECIPIENTS CSV FILE
+With
+.BR \-recipients\-path ,
+the recipients come from a UTF-8, comma-separated CSV file (RFC 4180 quoting;
+a leading BOM is ignored).
+The first row names the columns, in any order and case:
+.TP
+.BR email ", " first ", " last
+As in
+.BR [[recipients]] ;
+.B email
+and
+.B first
+are required.
+.TP
+.BR cc ", " cc_extra ", " attachments ", " attachments_extra
+As in
+.BR [[recipients]] ,
+with several values separated by
+.BR ; .
+An empty cell means not set.
+The attachment columns need
+.BR \-csv\-attachments ;
+attachments in
+.B [general]
+are not affected.
+.TP
+any other column
+A custom key for template variables, with the same rules as the keys of
+.BR data .
+.PP
+Each row gets the same checks as a
+.B [[recipients]]
+entry.
+A duplicate column name, a row with the wrong number of fields, an empty file
+or a file without rows is an error.
+Errors name the file and line.
+Check a CSV from someone else with
+.B \-dry\-run
+before sending: it shows every recipient, Cc and attachment.
+.PP
+.RS
+.nf
+email,first,last,role,cc
+sam@shire.org,Samwise,Gamgee,Gardener,
+pippin@shire.org,Peregrin,Took,Knight,merry@shire.org
+.fi
+.RE
 .SH TEMPLATE VARIABLES
 The following placeholders are substituted in both the subject line and the
 template body:
@@ -251,6 +326,7 @@ They are not required for
 .BR \-validate ,
 .BR \-sample\-config ,
 .BR \-sample\-template ,
+.BR \-sample\-csv ,
 or
 .BR \-version .
 .PP

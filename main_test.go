@@ -66,7 +66,7 @@ func TestLoadConfigValid(t *testing.T) {
 	path := filepath.Join(dir, "config.toml")
 	require.NoError(t, os.WriteFile(path, []byte(config.SampleConfig("0.0.0")), 0o644))
 
-	cfg, err := loadConfig(path)
+	cfg, err := loadConfig(path, "", false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, cfg.From)
 	assert.NotEmpty(t, cfg.Subject)
@@ -74,7 +74,7 @@ func TestLoadConfigValid(t *testing.T) {
 }
 
 func TestLoadConfigMissingFile(t *testing.T) {
-	_, err := loadConfig("/nonexistent/config.ini")
+	_, err := loadConfig("/nonexistent/config.ini", "", false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read")
 }
@@ -84,9 +84,56 @@ func TestLoadConfigInvalid(t *testing.T) {
 	path := filepath.Join(dir, "bad.toml")
 	require.NoError(t, os.WriteFile(path, []byte("[general]\nfrom = \"x\"\n"), 0o644))
 
-	_, err := loadConfig(path)
+	_, err := loadConfig(path, "", false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid config")
+}
+
+func TestLoadConfigCSV(t *testing.T) {
+	dir := t.TempDir()
+	general := filepath.Join(dir, "general.toml")
+	require.NoError(t, os.WriteFile(general, []byte("[general]\nfrom = \"a <a@a.com>\"\nsubject = \"Hi %FN%\"\n"), 0o644))
+	csvPath := filepath.Join(dir, "people.csv")
+	require.NoError(t, os.WriteFile(csvPath, []byte(config.SampleCSV()), 0o644))
+	tmplPath := filepath.Join(dir, "template.eml")
+	require.NoError(t, os.WriteFile(tmplPath, []byte(config.SampleTemplate()), 0o644))
+	sample := filepath.Join(dir, "config.toml")
+	require.NoError(t, os.WriteFile(sample, []byte(config.SampleConfig("0.0.0")), 0o644))
+	bad := filepath.Join(dir, "bad.csv")
+	require.NoError(t, os.WriteFile(bad, []byte("email,first\na@b.com,A\na@b.com,B\n"), 0o644))
+	attach := filepath.Join(dir, "attach.csv")
+	require.NoError(t, os.WriteFile(attach, []byte("email,first,attachments\na@b.com,A,x.pdf\n"), 0o644))
+
+	cfg, err := loadConfig(general, csvPath, false)
+	require.NoError(t, err)
+	msgs, err := prepMails(&cfg, tmplPath)
+	require.NoError(t, err)
+	require.Len(t, msgs, 5)
+	assert.Equal(t, "Hi John", msgs[0].Subject)
+	assert.Contains(t, msgs[0].Body, "at EFF?")
+	assert.Equal(t, []string{"bl@kf.io", "info@ex.org"}, msgs[0].Cc)
+
+	tests := []struct {
+		name, config, csv string
+		attach            bool
+		want              string
+	}{
+		{"config with [[recipients]]", sample, csvPath, false, "invalid config file"},
+		{"missing CSV", general, filepath.Join(dir, "none.csv"), false, "failed to read recipients file"},
+		{"bad CSV", general, bad, false, "invalid recipients file: " + bad + ":3: duplicate recipient"},
+		{"attachments without -csv-attachments", general, attach, false, "need -csv-attachments"},
+		{"attachments with -csv-attachments", general, attach, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := loadConfig(tt.config, tt.csv, tt.attach)
+			if tt.want == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.want)
+			}
+		})
+	}
 }
 
 func TestPrepMailsValid(t *testing.T) {
