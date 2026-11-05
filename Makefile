@@ -36,12 +36,13 @@ RELEASE_GO ?= go1.26.10
 STABLE := $(shell echo '$(VERSION)' | grep -xE '[0-9]+\.[0-9]+\.[0-9]+')
 # Container image of the archives in DIST_DIR, as an OCI layout.
 IMAGE_DIR := $(DIST_DIR)/image
-# Checks the tag (scripts/release-check.sh) and, for a stable version, the
-# ghcr.io login; runs lint and test, then builds and signs the archives and, for
-# a stable version, builds the image from them.
-RELEASE_DIST = scripts/release-check.sh $(TAG) \
+# Before the tag is pushed: the local checks of the tag (scripts/release-check.sh
+# pre), for a stable version the ghcr.io login, then lint and test.
+RELEASE_PRE = scripts/release-check.sh pre $(TAG) \
 	$(if $(STABLE),&& bash -c 'source scripts/release-lib.sh && ghcr_login >/dev/null') \
-	&& $(MAKE) --no-print-directory lint test dist $(if $(STABLE),image)
+	&& $(MAKE) --no-print-directory lint test
+# Builds and signs the archives and, for a stable version, the image from them.
+RELEASE_DIST = $(MAKE) --no-print-directory dist $(if $(STABLE),image)
 # After the GitHub release: a stable version's image goes to ghcr.io.
 IMAGE := ghcr.io/al-maisan/gmt-mail
 RELEASE_PUSH = $(if $(STABLE),&& $(MAKE) --no-print-directory push-image)
@@ -85,26 +86,36 @@ install: lint
 vendor:
 	go mod vendor
 
-tag:
-	@if git rev-parse $(TAG) >/dev/null 2>&1; then \
+# Only refs/tags/ count: a branch named like the tag must not stand in for it.
+TAG_CREATE = if git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null; then \
 		echo "tag: $(TAG) exists locally"; \
 	else \
-		git tag -s $(TAG) -m "$(TAG)"; \
-		echo "tag: created $(TAG)"; \
+		git tag -s $(TAG) -m "$(TAG)" && echo "tag: created $(TAG)"; \
 	fi
-	@if git ls-remote --tags origin $(TAG) | grep -q $(TAG); then \
+TAG_PUSH = remote=$$(git ls-remote --tags origin "refs/tags/$(TAG)") || exit 1; \
+	if [ -n "$$remote" ]; then \
 		echo "tag: $(TAG) exists on remote"; \
 	else \
-		git push origin $(TAG); \
-		echo "tag: pushed $(TAG)"; \
+		git push origin "refs/tags/$(TAG)" && echo "tag: pushed $(TAG)"; \
 	fi
+
+# Creates and pushes the signed tag, without the release checks.
+tag:
+	@$(TAG_CREATE)
+	@$(TAG_PUSH)
 
 # Creates the GitHub release with the dist archives; an existing release that lacks
 # any of them (none yet, or an interrupted upload) gets all of them (re)uploaded,
 # and a draft left by an interrupted `gh release create` is published. A stable
 # release whose image is not on ghcr.io (e.g. a failed push) gets it pushed.
-# Archives are built only when they are needed.
-release: tag
+# Archives are built only when they are needed. The tag is pushed only after
+# the checks that need no GitHub, lint and test passed (RELEASE_PRE); the checks
+# against GitHub run after the push.
+release:
+	@$(TAG_CREATE)
+	@$(RELEASE_PRE)
+	@$(TAG_PUSH)
+	@scripts/release-check.sh post $(TAG)
 	@if $(GH) release view $(TAG) >/dev/null 2>&1; then \
 		have=" $$($(GH) release view $(TAG) --json assets --jq '[.assets[].name] | join(" ")') "; missing=; \
 		for a in $(DIST_ASSETS); do case "$$have" in *" $$a "*) ;; *) missing="$$missing $$a";; esac; done; \
@@ -243,6 +254,9 @@ test-pkg: test-dist test-ppa test-copr test-brew test-man test-release
 
 # A prerelease goes to GitHub only: RPM versions can't hold '-', dpkg sorts
 # 1.0.0-rc1-1ppa1 above 1.0.0, and Homebrew would move to it.
+# One at a time, even under -j: `ppa: tag` must not push the tag before the
+# checks of `release` passed.
+.NOTPARALLEL: publish
 publish: release $(if $(findstring -,$(TAG)),,copr ppa brew)
 	@echo "Published $(TAG) to $(if $(findstring -,$(TAG)),GitHub (prerelease),GitHub, COPR, PPA and Homebrew)"
 
