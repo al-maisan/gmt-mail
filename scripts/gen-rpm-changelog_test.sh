@@ -15,6 +15,16 @@ check "escape: plain text unchanged" "- Fix bug (#1)" "$(rpm_escape <<<'- Fix bu
 check "escape: percent doubled" "- 100%% done" "$(rpm_escape <<<'- 100% done')"
 check "escape: macros neutralised" "- %%(id) %%{version}" "$(rpm_escape <<<'- %(id) %{version}')"
 
+# Release creation order: v0.10.1 came after v0.11.0; prereleases and other tags are dropped.
+check "newest first by version" "v0.11.0 v0.10.1 v0.10.0 v0.9.0" "$(printf '%s\n' v0.10.1 v0.11.0 v0.9.0 stable v0.12.0-rc1 v0.10.0 | newest_first | paste -sd' ')"
+check "newest first: no tags" "" "$(newest_first </dev/null)"
+check "newest first up to v0.10.1" "v0.10.1 v0.10.0 v0.9.0" "$(printf '%s\n' v0.10.1 v0.11.0 v0.9.0 v0.10.0 | newest_first v0.10.1 | paste -sd' ')"
+check "newest first up to an unreleased v0.12.0" "v0.11.0 v0.10.1" "$(printf '%s\n' v0.10.1 v0.11.0 | newest_first v0.12.0 | paste -sd' ')"
+
+# %changelog needs English names in any locale (de_DE would give "Mo Nov 02 2026").
+TAG=$(git tag -l 'v*' --sort=-version:refname | grep -vF -- - | head -1)
+check "date: English under de_DE" yes "$(LC_ALL=de_DE.UTF-8 rpm_date "$TAG" 2>/dev/null | grep -qxE '(Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{2} [0-9]{4}' && echo yes || echo no)"
+
 # With rpm installed, check that an escaped subject renders literally and runs nothing.
 if command -v rpmspec >/dev/null; then
     TMP=$(mktemp -d)

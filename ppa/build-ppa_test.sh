@@ -52,6 +52,14 @@ check "dots are literal (0.8.0 does not match 0x8y0)" no "$(UPLOADED='0x8y0-1ppa
 # Under the script's set -e and pipefail, finding nothing is not an error.
 check "no uploads: no error" yes "$(set -e; UPLOADED=$(uploaded_versions 0.8.0 <<<'{"entries": []}'); next_rev >/dev/null; echo yes)"
 
+# prev_release: by version, not by release creation order.
+RELS=$(printf '%s\n' v0.10.1 v0.11.0 v0.10.0 v0.9.0 v0.12.0-rc1)
+check "prev release of a maintenance release" v0.10.0 "$(prev_release v0.10.1 <<<"$RELS")"
+check "prev release of the newest" v0.11.0 "$(prev_release v0.12.0 <<<"$RELS")"
+check "prev release when TAG is listed" v0.10.1 "$(prev_release v0.11.0 <<<"$RELS")"
+check "no release below the first" "" "$(prev_release v0.9.0 <<<"$RELS")"
+check "no releases" "" "$(prev_release v1.0.0 </dev/null)"
+
 # add_debian: the packaging from HEAD, with the tag's commit and date.
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

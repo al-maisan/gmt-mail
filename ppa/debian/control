@@ -15,7 +15,7 @@ Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: send personalized emails in bulk using templates
  gmt-mail (Go Mailing Tool) sends personalized emails in bulk. It reads a list
- of recipients and mail metadata from an INI configuration file, substitutes
+ of recipients and mail metadata from a TOML configuration file, substitutes
  per-recipient variables into an email template, and sends the resulting
  messages via SMTP with mandatory TLS encryption.
  .

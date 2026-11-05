@@ -187,7 +187,7 @@ srpm: gen-spec
 # never drift or dirty the tree.
 gen-spec:
 	@mkdir -p $(RPMBUILD_DIR)/SPECS
-	@./scripts/gen-rpm-changelog.sh > $(RPMBUILD_DIR)/rpm-changelog.tmp
+	@./scripts/gen-rpm-changelog.sh $(TAG) > $(RPMBUILD_DIR)/rpm-changelog.tmp
 	@awk -v ver='$(VERSION)' -v commit='$(TAG_COMMIT)' -v date='$(MAN_DATE)' -v clog=$(RPMBUILD_DIR)/rpm-changelog.tmp \
 		'{ gsub(/@VERSION@/, ver); gsub(/@COMMIT@/, commit); gsub(/@BUILD_DATE@/, date) } /^@CHANGELOG@$$/ { while ((getline l < clog) > 0) print l; next } { print }' \
 		$(SPEC_TEMPLATE) > $(SPEC_OUT)

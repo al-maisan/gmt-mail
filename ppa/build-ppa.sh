@@ -40,6 +40,13 @@ next_rev() {
     echo $(( ${top:-0} + 1 ))
 }
 
+# prev_release TAG: read release tags on stdin; print the highest stable one
+# below TAG, or nothing. Versions, not release creation order: v0.10.1 created
+# after v0.11.0 still pairs with v0.10.0.
+prev_release() {
+    { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; echo "$1"; } | sort -uV | grep -B1 -xF -- "$1" | { grep -vxF -- "$1" || true; }
+}
+
 # lp_sources: print Launchpad's JSON list of this PPA's gmt-mail uploads.
 # Anonymous API reads go through a cache that can be many minutes old and miss a
 # fresh upload, which then looks absent; no-cache asks Launchpad itself.
@@ -146,7 +153,7 @@ for RELEASE in "${RELEASES[@]}"; do
     # GITHUB_TOKEN so gh uses the keyring login (a narrow-scoped token would
     # make this empty and mis-scope the changelog range).
     PREV_TAG=$(env -u GITHUB_TOKEN gh release list --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null \
-        | grep -v "^${TAG}$" | head -1 || echo "")
+        | prev_release "$TAG" || echo "")
     TIMESTAMP=$(date -R)
     {
         echo "gmt-mail (${FULL_VER}) ${RELEASE}; urgency=medium"
