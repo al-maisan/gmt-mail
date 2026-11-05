@@ -1,10 +1,10 @@
 #!/bin/bash
-# Write the source tarball of the PPA package: the tree of a stable release tag
+# Write the source tarball of the PPA and RPM packages: the tree of a stable release tag
 # plus the vendored Go modules (Launchpad builds without network), as
 # gmt-mail-VERSION/. The same tag gives the same tarball byte for byte: fixed
 # file order, owner, modes and times (the tag's commit time), and no gzip
 # timestamp. So a rebuild that regenerates it matches Launchpad's copy.
-# Usage: src-tarball.sh TAG OUT.tar.gz   (called by ppa/build-ppa.sh)
+# Usage: src-tarball.sh TAG OUT.tar.gz   (called by ppa/build-ppa.sh and make srpm)
 set -euo pipefail
 
 die() {

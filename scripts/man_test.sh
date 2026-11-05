@@ -15,6 +15,7 @@ check "make man: no placeholders left" 0 "$(grep -c -E '@(VERSION|DATE)@' "$MAN"
 check "make man: version in header" 1 "$(grep -c -E "^\.TH GMT\\\\-MAIL 1 \"[0-9]{4}-[0-9]{2}-[0-9]{2}\" \"gmt-mail ${VERSION//./\\.}\"" "$MAN")"
 
 # gen-spec replaces @VERSION@ in the spec; the man page sed there must survive it.
+check "spec: no placeholder left" 0 "$(grep -cE '@[A-Z_]+@' "$SPEC")"
 check "spec: man sed survives gen-spec" 1 "$(grep -c -F "s/@VERSION[@]/%{version}/g" "$SPEC")"
 
 # Run the spec's and debian/rules' sed expressions on the template, as the builds do.

@@ -119,6 +119,21 @@ func TestLoadSMTPCredentials(t *testing.T) {
 			env:     map[string]string{"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "abc", "SENDER_EMAIL": "u@e.com", "SENDER_PASSWORD": "secret"},
 			wantErr: "SMTP_PORT",
 		},
+		{
+			name:    "port zero",
+			env:     map[string]string{"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "0", "SENDER_EMAIL": "u@e.com", "SENDER_PASSWORD": "secret"},
+			wantErr: "SMTP_PORT",
+		},
+		{
+			name:    "negative port",
+			env:     map[string]string{"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "-587", "SENDER_EMAIL": "u@e.com", "SENDER_PASSWORD": "secret"},
+			wantErr: "SMTP_PORT",
+		},
+		{
+			name:    "port above 65535",
+			env:     map[string]string{"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "65536", "SENDER_EMAIL": "u@e.com", "SENDER_PASSWORD": "secret"},
+			wantErr: "SMTP_PORT",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

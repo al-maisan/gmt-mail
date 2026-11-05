@@ -34,8 +34,9 @@ REFS=$(git ls-remote "$REMOTE" "refs/tags/$TAG" "refs/tags/$TAG^{}") || die "can
 [ "$(awk -v r="refs/tags/$TAG" '$2 == r { print $1 }' <<<"$REFS")" == "$(git rev-parse "refs/tags/$TAG")" ] \
     || die "tag '$TAG' on GitHub is missing or is another tag object"
 
-MASTER=$(git ls-remote "$REMOTE" refs/heads/master | cut -f1)
-[ -n "$MASTER" ] || die "cannot read master of $REMOTE"
+HEADS=$(git ls-remote "$REMOTE" refs/heads/master) || die "cannot read master of $REMOTE"
+MASTER=$(cut -f1 <<<"$HEADS")
+[ -n "$MASTER" ] || die "no master on $REMOTE"
 git cat-file -e "$MASTER^{commit}" 2>/dev/null || die "master of GitHub ($MASTER) is not local; run: git fetch origin"
 git merge-base --is-ancestor HEAD "$MASTER" || die "HEAD is not on master of GitHub"
 echo "release-check: $TAG ok"

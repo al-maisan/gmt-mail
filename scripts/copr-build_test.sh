@@ -63,4 +63,13 @@ check "todo: everything when nothing is built" "fedora-43-x86_64 fedora-44-x86_6
 check "project chroots" "fedora-43-x86_64" "$(project_chroots <<<'{"chroot_repos": {"fedora-43-x86_64": "https://x"}}')"
 check "release from spec template" 1 "$(spec_release)"
 
+# A dirty tree stops the build before any lookup or upload: run a copy of the
+# script in a scratch repo with an untracked file.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+git init -q "$TMP/r" && mkdir "$TMP/r/scripts" && cp "$SRC_DIR/scripts/copr-build.sh" "$TMP/r/scripts/" && cp "$SRC_DIR/gmt-mail.spec" "$TMP/r/"
+git -C "$TMP/r" add . && git -C "$TMP/r" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm init
+touch "$TMP/r/.env"
+check "dirty tree refused" "Error: working tree not clean; commit or stash first" "$("$TMP/r/scripts/copr-build.sh" 1.2.3 "$TMP" 2>&1)"
+
 exit "$fail"

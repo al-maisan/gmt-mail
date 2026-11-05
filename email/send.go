@@ -87,8 +87,8 @@ func LoadSMTPCredentials() (SMTPCredentials, error) {
 	}
 
 	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return SMTPCredentials{}, fmt.Errorf("SMTP_PORT must be a valid integer, got %q", portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return SMTPCredentials{}, fmt.Errorf("SMTP_PORT must be a port number (1-65535), got %q", portStr)
 	}
 
 	return SMTPCredentials{Host: host, Port: port, User: user, Password: password}, nil

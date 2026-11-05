@@ -49,5 +49,17 @@ VERSION=0.8.0
 UPLOADED=$(uploaded_versions "$VERSION" <<<'{"entries": []}')
 check "empty PPA" "" "$UPLOADED"
 check "dots are literal (0.8.0 does not match 0x8y0)" no "$(UPLOADED='0x8y0-1ppa1~resolute1' uploaded_for resolute && echo yes || echo no)"
+# Under the script's set -e and pipefail, finding nothing is not an error.
+check "no uploads: no error" yes "$(set -e; UPLOADED=$(uploaded_versions 0.8.0 <<<'{"entries": []}'); next_rev >/dev/null; echo yes)"
+
+# add_debian: the packaging from HEAD, with the tag's commit and date.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+add_debian "$TMP"
+check "debian: rules, control and the shared helpers" yes \
+    "$([ -x "$TMP/debian/rules" ] && [ -f "$TMP/debian/control" ] && [ -f "$TMP/debian/deb-layout.sh" ] && [ -f "$TMP/debian/install-docs.sh" ] && echo yes || echo no)"
+check "debian: tag's commit" 1 "$(grep -cxF "COMMIT  := $(git rev-parse --short=7 "$TAG^{commit}")" "$TMP/debian/rules")"
+check "debian: tag's date" 1 "$(grep -cxF "DATE    := $(git log -1 --format=%cs "$TAG^{commit}")" "$TMP/debian/rules")"
+check "debian: no placeholder left" 0 "$(grep -c '@[A-Z_]\+@' "$TMP/debian/rules")"
 
 exit "$fail"

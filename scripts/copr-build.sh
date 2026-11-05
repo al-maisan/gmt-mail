@@ -88,6 +88,8 @@ if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
 VERSION="${1:?usage: copr-build.sh VERSION SRPM_DIR}"
 SRPM_DIR="${2:?usage: copr-build.sh VERSION SRPM_DIR}"
 NVR="${VERSION}-$(spec_release)"
+# The spec comes from the working tree; a dirty tree means it is not what is committed.
+[ -z "$(git -C "$SRC_DIR" status --porcelain)" ] || { echo "Error: working tree not clean; commit or stash first" >&2; exit 1; }
 
 # Fail loudly on any lookup error: guessing would build for the wrong releases or
 # submit duplicate builds.

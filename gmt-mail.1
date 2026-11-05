@@ -212,6 +212,15 @@ file exists in the working directory, it is loaded automatically (environment
 variables take precedence over
 .B .env
 values).
+Run it only where you trust the
+.BR .env :
+with
+.B SENDER_PASSWORD
+exported, a
+.B .env
+that sets
+.B SMTP_HOST
+would get your password.
 .TP
 .B SMTP_HOST
 SMTP server hostname (e.g.,
