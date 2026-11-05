@@ -136,7 +136,7 @@ Each entry defines one recipient with the following fields:
 Recipient email address. Required; must be unique across recipients.
 .TP
 .B first
-First name. Required.
+First name. Required; must not be blank.
 .TP
 .B last
 Last name. Optional.
@@ -153,6 +153,8 @@ Cannot be combined with
 .TP
 .B cc_extra
 Append to the global Cc list for this recipient.
+A Cc list never repeats an address (compared case-insensitively) or holds
+the recipient's own address.
 .TP
 .B attachments
 Replace the global attachments for this recipient.
@@ -202,8 +204,8 @@ Recipient's email address.
 .BI % KEY %
 Any custom key defined in the recipient's data (uppercase).
 .PP
-An unresolved placeholder is an error: nothing is sent and the exit status
-is 2.
+An unresolved placeholder, or a subject or body that is blank after
+substitution, is an error: nothing is sent and the exit status is 2.
 .SH ENVIRONMENT
 SMTP credentials are loaded from environment variables.
 If a

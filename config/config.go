@@ -200,6 +200,10 @@ func checkRecipient(e tomlRecipient) error {
 	if a, err := mail.ParseAddress(e.Email); err != nil || a.Name != "" || a.Address != e.Email {
 		return fmt.Errorf("recipient %q: email must be a bare address", e.Email)
 	}
+	// "required" accepts " ", which would give an empty name and greeting.
+	if strings.TrimSpace(e.First) == "" {
+		return fmt.Errorf("recipient %q: 'first' must not be blank", e.Email)
+	}
 	if len(e.Cc) > 0 && len(e.CcExtra) > 0 {
 		return fmt.Errorf("recipient %q: set either 'cc' or 'cc_extra', not both", e.Email)
 	}

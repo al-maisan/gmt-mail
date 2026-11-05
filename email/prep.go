@@ -20,6 +20,7 @@ package email
 
 import (
 	"fmt"
+	"net/mail"
 	"regexp"
 	"slices"
 	"strings"
@@ -99,12 +100,13 @@ func unresolvedPlaceholders(text string, keys map[string]struct{}) []string {
 
 // PrepMails generates a Message for each recipient by substituting template
 // variables and resolving per-recipient Cc and attachment overrides.
-// Returns an error if any placeholders remain unresolved.
+// Returns an error if any placeholders remain unresolved, or if a subject or
+// body is blank after substitution (e.g. subject "%LN%" and no last name).
 func PrepMails(cfg *config.MailConfig, template string) ([]Message, error) {
 	var errs []string
 	mails := make([]Message, 0, len(cfg.Recipients))
 	for _, recipient := range cfg.Recipients {
-		cc := resolveOverride(cfg.Cc, recipient.Cc, recipient.CcExtra)
+		cc := dedupeCc(resolveOverride(cfg.Cc, recipient.Cc, recipient.CcExtra), recipient.Email)
 		attachments := resolveOverride(cfg.Attachments, recipient.Attachments, recipient.AttachmentsExtra)
 
 		keys := availableKeys(recipient)
@@ -117,6 +119,12 @@ func PrepMails(cfg *config.MailConfig, template string) ([]Message, error) {
 
 		subject := substituteVariables(recipient, cfg.Subject)
 		body := substituteVariables(recipient, template)
+		if strings.TrimSpace(subject) == "" {
+			errs = append(errs, fmt.Sprintf("recipient '%s': subject is blank after substitution", recipient.Email))
+		}
+		if strings.TrimSpace(body) == "" {
+			errs = append(errs, fmt.Sprintf("recipient '%s': body is blank after substitution", recipient.Email))
+		}
 
 		name := strings.TrimSpace(recipient.First + " " + recipient.Last)
 		mails = append(mails, Message{
@@ -129,7 +137,7 @@ func PrepMails(cfg *config.MailConfig, template string) ([]Message, error) {
 		})
 	}
 	if len(errs) > 0 {
-		return nil, fmt.Errorf("unresolved placeholders:\n  %s", strings.Join(errs, "\n  "))
+		return nil, fmt.Errorf("cannot prepare the messages:\n  %s", strings.Join(errs, "\n  "))
 	}
 	return mails, nil
 }
@@ -145,4 +153,25 @@ func resolveOverride(global, replace, extra []string) []string {
 		return append(slices.Clone(global), extra...)
 	}
 	return slices.Clone(global)
+}
+
+// dedupeCc drops repeated Cc addresses and the To address itself, comparing the
+// bare addresses case-insensitively; the first spelling of each is kept.
+// Otherwise the Cc header lists an address twice and the recipient is Cc'd on
+// their own mail. The addresses were checked at parse time.
+func dedupeCc(cc []string, to string) []string {
+	seen := map[string]struct{}{strings.ToLower(to): {}}
+	var out []string
+	for _, c := range cc {
+		key := strings.ToLower(c)
+		if a, err := mail.ParseAddress(c); err == nil {
+			key = strings.ToLower(a.Address)
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, c)
+	}
+	return out
 }

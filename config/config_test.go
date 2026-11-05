@@ -351,6 +351,7 @@ func TestParseRejects(t *testing.T) {
 	}{
 		{"unknown general key", general + "atachments = [\"x.pdf\"]\n[[recipients]]\nemail = \"a@b.com\"\nfirst = \"A\"\n", "unknown key(s): general.atachments"},
 		{"unknown recipient key", general + "[[recipients]]\nemail = \"a@b.com\"\nfirst = \"A\"\nattachment = [\"x.pdf\"]\n", "unknown key(s): recipients.attachment"},
+		{"blank first", general + "[[recipients]]\nemail = \"a@b.com\"\nfirst = \" \"\n", "recipient \"a@b.com\": 'first' must not be blank"},
 		{"cc and cc_extra", general + "[[recipients]]\nemail = \"a@b.com\"\nfirst = \"A\"\ncc = [\"c@d.com\"]\ncc_extra = [\"e@f.com\"]\n", "either 'cc' or 'cc_extra'"},
 		{"attachments and attachments_extra", general + "[[recipients]]\nemail = \"a@b.com\"\nfirst = \"A\"\nattachments = [\"x\"]\nattachments_extra = [\"y\"]\n", "either 'attachments' or 'attachments_extra'"},
 		{"invalid from", "[general]\nfrom = \"not an address\"\nsubject = \"s\"\n[[recipients]]\nemail = \"a@b.com\"\nfirst = \"A\"\n", "invalid address in 'from'"},
