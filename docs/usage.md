@@ -123,9 +123,23 @@ Example template:
 
     Best regards
 
+### Markdown
+
+With `-markdown` the template is [Markdown](https://commonmark.org/) (plus tables, `~~strikethrough~~` and bare links as in GitHub). Each message has two parts; the mail program shows the HTML, or the text if it can't. The subject stays plain text.
+
+- **Text part:** the template with the values filled in as they are, so a value's Markdown stays in the text.
+- **HTML part:** the template is rendered as HTML first, then the values are filled in as literal text. A value never becomes Markdown or HTML: `*VIP*`, `[x](https://evil.org)` or `<b>` show as typed, with `&<>"'` escaped. Placeholders work everywhere, also in headings, tables, link texts and code spans.
+- **In a link or image address** a value is percent-encoded, so it can only be a part of the address, never a whole address or its scheme: a link whose whole address is a placeholder doesn't work. Before the `?`, `/` and `:` are encoded too. After the `?` (e.g. `https://shire.org/seat?id=%SEAT%`) and after a `#`, `&` and `=` are encoded too, so a value can't add a parameter.
+
+HTML in the template is left out of the HTML part, and `javascript:` links in the template lose their address. A placeholder only inside such HTML or link is an error (exit 2), as its value would be lost.
+
+    # Hello %FN%
+
+    How are things going, **%ROLE%**? The plan is [here](https://shire.org/plan).
+
 ## Dry run
 
-`-dry-run` prints every message without sending, with Cc and attachments when present. Like `-validate`, it first checks that every attachment file exists and is readable. The example above gives:
+`-dry-run` prints every message without sending, with Cc and attachments when present. With `-markdown` it prints the text part and a line `HTML: also sent, rendered from the template`. Like `-validate`, it first checks that every attachment file exists and is readable. The example above gives:
 
     $ gmt-mail -dry-run -config-path config.toml -template-path template.eml
     --
@@ -176,6 +190,8 @@ Progress is shown as `[1/N]` for each message. Temporary send failures are retri
             delay between emails (e.g., 1s, 500ms)
       -dry-run
             show what would be done but execute no action
+      -markdown
+            the template is Markdown: send it as text plus an HTML rendering
       -recipients-path string
             path to a CSV file with the recipients (the config file then has no [[recipients]])
       -retries int

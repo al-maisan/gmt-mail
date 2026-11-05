@@ -8,6 +8,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.11.1
 	github.com/wneessen/go-mail v0.7.3
+	github.com/yuin/goldmark v1.8.7
 )
 
 require (

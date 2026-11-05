@@ -5,6 +5,7 @@ gmt\-mail \- send personalized emails in bulk using a template and a configurati
 .SH SYNOPSIS
 .B gmt\-mail
 .RB [ \-dry\-run ]
+.RB [ \-markdown ]
 .RB [ \-delay
 .IR duration ]
 .B \-config\-path
@@ -76,12 +77,20 @@ Path to the email template file. Required unless using
 or
 .BR \-version .
 .TP
+.B \-markdown
+The template is Markdown (CommonMark plus tables, strikethrough and bare
+links). Each message has a text part and an HTML part. See
+.BR MARKDOWN .
+.TP
 .B \-dry\-run
 Preview all emails on standard output without connecting to an SMTP server.
 SMTP credentials are not required in this mode.
 As with
 .BR \-validate ,
 the attachment files must exist and be readable.
+With
+.BR \-markdown ,
+the text part is printed, plus a line noting that an HTML part is sent too.
 .TP
 .B \-validate
 Parse the configuration and template files, check for errors and unresolved
@@ -286,6 +295,42 @@ Any custom key defined in the recipient's data (uppercase).
 .PP
 An unresolved placeholder, or a subject or body that is blank after
 substitution, is an error: nothing is sent and the exit status is 2.
+.SH MARKDOWN
+With
+.BR \-markdown ,
+each message has two parts. The subject stays plain text.
+.PP
+The text part is the template with the values filled in as they are.
+.PP
+For the HTML part, the template is rendered first and the values are then
+filled in as literal text, with
+.B &<>\(dq\(aq
+escaped: a value never becomes Markdown or HTML.
+Placeholders work everywhere, also in headings, tables, link texts and code
+spans.
+In a link or image address, a value is percent-encoded, so it can only be
+part of the address, never a whole address or its scheme.
+Before the
+.BR ? ,
+.B /
+and
+.B :
+are encoded too; after the
+.B ?
+(e.g.
+.IR https://shire.org/seat?id=%SEAT% )
+and after a
+.BR # ,
+.B &
+and
+.B =
+are encoded too, so a value cannot add a parameter.
+.PP
+HTML in the template is left out of the HTML part, and
+.I javascript:
+links in the template lose their address.
+A placeholder only inside such HTML or link is an error (exit status 2), as
+its value would be lost.
 .SH ENVIRONMENT
 SMTP credentials are loaded from environment variables.
 If a

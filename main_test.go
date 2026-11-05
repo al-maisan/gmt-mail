@@ -17,12 +17,15 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/al-maisan/gmt-mail/config"
+	"github.com/al-maisan/gmt-mail/email"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,7 +109,7 @@ func TestLoadConfigCSV(t *testing.T) {
 
 	cfg, err := loadConfig(general, csvPath, false)
 	require.NoError(t, err)
-	msgs, err := prepMails(&cfg, tmplPath)
+	msgs, err := prepMails(&cfg, tmplPath, false)
 	require.NoError(t, err)
 	require.Len(t, msgs, 5)
 	assert.Equal(t, "Hi John", msgs[0].Subject)
@@ -144,14 +147,56 @@ func TestPrepMailsValid(t *testing.T) {
 	cfg, err := config.Parse([]byte(config.SampleConfig("0.0.0")))
 	require.NoError(t, err)
 
-	msgs, err := prepMails(&cfg, tmplPath)
+	msgs, err := prepMails(&cfg, tmplPath, false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, msgs)
 }
 
+func TestPrepMailsMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	tmplPath := filepath.Join(dir, "template.md")
+	require.NoError(t, os.WriteFile(tmplPath, []byte("# Hi %FN%"), 0o644))
+	cfg, err := config.Parse([]byte(config.SampleConfig("0.0.0")))
+	require.NoError(t, err)
+
+	for _, md := range []bool{false, true} {
+		msgs, err := prepMails(&cfg, tmplPath, md)
+		require.NoError(t, err)
+		assert.Equal(t, "# Hi "+cfg.Recipients[0].First, msgs[0].Body)
+		assert.Equal(t, md, msgs[0].HTML == "<h1>Hi "+cfg.Recipients[0].First+"</h1>\n")
+	}
+}
+
 func TestPrepMailsMissingTemplate(t *testing.T) {
 	cfg := config.MailConfig{}
-	_, err := prepMails(&cfg, "/nonexistent/template.eml")
+	_, err := prepMails(&cfg, "/nonexistent/template.eml", false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read template")
+}
+
+func TestPrintDryRunHTMLNote(t *testing.T) {
+	const note = "HTML: also sent"
+	tests := []struct {
+		name string
+		html string
+		want bool
+	}{
+		{"plain text", "", false},
+		{"markdown", "<h1>Hi</h1>", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
+			stdout := os.Stdout
+			t.Cleanup(func() { os.Stdout = stdout })
+			os.Stdout = w
+			printDryRun([]email.Message{{Name: "A", Address: "a@b.com", Subject: "s", Body: "# Hi", HTML: tt.html}})
+			require.NoError(t, w.Close())
+			out, err := io.ReadAll(r)
+			require.NoError(t, err)
+			assert.Contains(t, string(out), "# Hi\n", "the plain-text part is printed")
+			assert.Equal(t, tt.want, strings.Contains(string(out), note))
+		})
+	}
 }

@@ -112,6 +112,7 @@ func main() {
 	templatePath := flag.String("template-path", "", "path to the template file")
 	recipientsPath := flag.String("recipients-path", "", "path to a CSV file with the recipients (the config file then has no [[recipients]])")
 	csvAttachments := flag.Bool("csv-attachments", false, "allow the attachments and attachments_extra columns in the -recipients-path CSV")
+	doMarkdown := flag.Bool("markdown", false, "the template is Markdown: send it as text plus an HTML rendering")
 	doSampleConfig := flag.Bool("sample-config", false, "output sample configuration to stdout")
 	doSampleTemplate := flag.Bool("sample-template", false, "output sample template to stdout")
 	doSampleCSV := flag.Bool("sample-csv", false, "output sample recipients CSV to stdout")
@@ -169,7 +170,7 @@ func main() {
 		os.Exit(exitConfigError)
 	}
 
-	msgs, err := prepMails(&cfg, *templatePath)
+	msgs, err := prepMails(&cfg, *templatePath, *doMarkdown)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		os.Exit(exitConfigError)
@@ -267,7 +268,9 @@ func loadConfig(path, recipientsPath string, csvAttachments bool) (config.MailCo
 	return cfg, nil
 }
 
-func prepMails(cfg *config.MailConfig, templatePath string) ([]email.Message, error) {
+// prepMails reads the template and prepares the messages; with markdown set,
+// each also gets an HTML part rendered from the template.
+func prepMails(cfg *config.MailConfig, templatePath string, markdown bool) ([]email.Message, error) {
 	bs, err := os.ReadFile(templatePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file %q: %w", templatePath, err)
@@ -283,6 +286,11 @@ func prepMails(cfg *config.MailConfig, templatePath string) ([]email.Message, er
 	if len(msgs) == 0 {
 		return nil, fmt.Errorf("no recipients found in config file")
 	}
+	if markdown {
+		if err := email.RenderHTML(cfg, string(bs), msgs); err != nil {
+			return nil, err
+		}
+	}
 
 	return msgs, nil
 }
@@ -296,6 +304,9 @@ func printDryRun(msgs []email.Message) {
 		fmt.Printf("Subject: %s\n", m.Subject)
 		if len(m.Attachments) > 0 {
 			fmt.Printf("Attachments: %s\n", strings.Join(m.Attachments, ", "))
+		}
+		if m.HTML != "" {
+			fmt.Println("HTML: also sent, rendered from the template")
 		}
 		fmt.Printf("%s\n", m.Body)
 	}

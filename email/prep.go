@@ -43,21 +43,31 @@ type Message struct {
 	Name        string
 	Address     string
 	Body        string
+	HTML        string // optional text/html alternative of Body (-markdown)
 	Subject     string
 	Cc          []string
 	Attachments []string
 }
 
-// substituteVariables replaces placeholder tokens (%FN%, %LN%, %EA%, and
-// any custom keys from recipient.Data) in text with their values.
-func substituteVariables(recipient config.Recipient, text string) string {
-	pairs := []string{
-		placeholderEmail, recipient.Email,
-		placeholderFirstName, recipient.First,
-		placeholderLastName, recipient.Last,
+// placeholderValues maps each placeholder (%FN%, %LN%, %EA%, and any custom
+// keys from recipient.Data) to its value.
+func placeholderValues(recipient config.Recipient) map[string]string {
+	vals := map[string]string{
+		placeholderEmail:     recipient.Email,
+		placeholderFirstName: recipient.First,
+		placeholderLastName:  recipient.Last,
 	}
 	for k, v := range recipient.Data {
-		pairs = append(pairs, fmt.Sprintf("%%%s%%", k), v)
+		vals[fmt.Sprintf("%%%s%%", k)] = v
+	}
+	return vals
+}
+
+// substituteVariables replaces the placeholders in text with their values.
+func substituteVariables(recipient config.Recipient, text string) string {
+	var pairs []string
+	for p, v := range placeholderValues(recipient) {
+		pairs = append(pairs, p, v)
 	}
 	return strings.NewReplacer(pairs...).Replace(text)
 }

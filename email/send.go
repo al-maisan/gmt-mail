@@ -251,6 +251,9 @@ func (sc *BatchSender) sendOne(m Message, prefix string) error {
 		logf(sc.w, "%s ! %s (failed to create: %v)\n", prefix, recipient, err)
 		return err
 	}
+	if m.HTML != "" {
+		msg.AddAlternativeString(mail.TypeTextHTML, m.HTML)
+	}
 
 	if err := attachFiles(msg, m.Attachments); err != nil {
 		logf(sc.w, "%s ! %s (failed to attach: %v)\n", prefix, recipient, err)
