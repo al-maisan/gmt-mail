@@ -25,7 +25,7 @@ Variables already set in the environment win over `.env`. So run gmt-mail only i
 
 For Gmail you must use an [App Password](https://myaccount.google.com/apppasswords) (needs 2-Step Verification). [`.env.example`](../.env.example) also has settings for Outlook and Yahoo.
 
-TLS is enforced, so credentials are never sent in plaintext. Port 465 uses implicit TLS (SMTPS); any other port (e.g. 587) requires STARTTLS.
+TLS is enforced, so credentials are never sent in plaintext. Port 465 uses implicit TLS (SMTPS); any other port (e.g. 587) requires STARTTLS. Login uses SMTP AUTH PLAIN only: a server that doesn't offer it fails the connection (exit 3).
 
 ## Configuration file
 
@@ -54,7 +54,7 @@ The config file uses [TOML](https://toml.io/) with a `[general]` section and one
 | `attachments`       | no       | Replaces the global attachments for this recipient |
 | `attachments_extra` | no       | Is added to the global attachments for this recipient |
 
-Each `email` must be unique. A recipient's Cc never lists the same address twice (compared case-insensitively) or the recipient's own address. A recipient may set `cc` or `cc_extra`, not both (same for `attachments` and `attachments_extra`). Attachments must be readable regular files.
+Each `email` must be unique. A recipient's Cc never lists the same address twice (compared case-insensitively) or the recipient's own address. If the server rejects any one address of a message (To or a Cc, e.g. a stale `cc_extra` address), that message goes to nobody: it counts as failed (exit 4). A recipient may set `cc` or `cc_extra`, not both (same for `attachments` and `attachments_extra`). Attachments must be readable regular files.
 
 Example:
 
@@ -103,7 +103,7 @@ Example template:
 
 ## Dry run
 
-`-dry-run` prints every message without sending, with Cc and attachments when present. The example above gives:
+`-dry-run` prints every message without sending, with Cc and attachments when present. Like `-validate`, it first checks that every attachment file exists and is readable. The example above gives:
 
     $ gmt-mail -dry-run -config-path config.toml -template-path template.eml
     --
