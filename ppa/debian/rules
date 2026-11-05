@@ -7,8 +7,9 @@ export GOPATH := $(CURDIR)/.gopath
 export GOTOOLCHAIN := local
 
 VERSION := $(shell dpkg-parsechangelog -SVersion | sed 's/-[^-]*$$//')
-COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-DATE    := $(shell date -u +%Y-%m-%d)
+# the tag's commit and date, filled in by build-ppa.sh (Launchpad has no .git)
+COMMIT  := @COMMIT@
+DATE    := @BUILD_DATE@
 # man page date: the release date from debian/changelog, not the build date
 MANDATE := $(shell date -u -d @$$(dpkg-parsechangelog -STimestamp) +%Y-%m-%d)
 

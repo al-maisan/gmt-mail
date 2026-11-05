@@ -19,6 +19,8 @@ SMTP credentials are read from environment variables. If a `.env` file exists in
     SENDER_EMAIL=your-email@gmail.com
     SENDER_PASSWORD=your-app-password
 
+Variables already set in the environment win over `.env`. So run gmt-mail only in a directory whose `.env` you trust: with `SENDER_PASSWORD` exported in your shell, someone else's `.env` setting `SMTP_HOST` would get your password.
+
 `SENDER_EMAIL` and `SENDER_PASSWORD` are used for SMTP authentication. The `from` key in the config file sets what recipients see as the sender; the two can differ if your mail server allows it.
 
 For Gmail you must use an [App Password](https://myaccount.google.com/apppasswords) (needs 2-Step Verification). [`.env.example`](../.env.example) also has settings for Outlook and Yahoo.

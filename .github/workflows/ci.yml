@@ -19,8 +19,9 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.x"
-          check-latest: true
+          # The release toolchain (RELEASE_GO in the Makefile), checked below.
+          go-version: "1.26.10"
+      - run: test "$(go env GOVERSION)" = "$(make -s print-release-go)" || { echo "CI Go $(go env GOVERSION) is not RELEASE_GO $(make -s print-release-go); update ci.yml"; exit 1; }
       - run: test -z "$(gofmt -l $(git ls-files '*.go'))" || { gofmt -l $(git ls-files '*.go'); exit 1; }
       - run: make vet
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0

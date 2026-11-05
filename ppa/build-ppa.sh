@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Configuration
 PPA="ppa:al-maisan/gmt-mail"
@@ -23,7 +23,7 @@ RELEASES=("resolute")  # 26.04 LTS
 # print the package versions uploaded for upstream VERSION (e.g. 0.8.0-1ppa1~resolute1).
 uploaded_versions() {
     local v
-    grep -oP '"source_package_version":\s*"\K[^"]+' | while read -r v; do
+    { grep -oP '"source_package_version":\s*"\K[^"]+' || true; } | while read -r v; do
         if [[ "$v" == "$1-1ppa"* ]]; then echo "$v"; fi
     done
 }
@@ -36,7 +36,7 @@ uploaded_for() {
 # next_rev: one above the highest ppa revision in UPLOADED, or 1.
 next_rev() {
     local top
-    top=$(grep -oP "^${VERSION//./\\.}-1ppa\K[0-9]+" <<<"$UPLOADED" | sort -n | tail -1)
+    top=$({ grep -oP "^${VERSION//./\\.}-1ppa\K[0-9]+" <<<"$UPLOADED" || true; } | sort -n | tail -1)
     echo $(( ${top:-0} + 1 ))
 }
 
@@ -46,6 +46,19 @@ next_rev() {
 lp_sources() {
     curl -fsS -H 'Cache-Control: no-cache' \
         "https://api.launchpad.net/1.0/~${LP_USER}/+archive/ubuntu/${LP_PPA}?ws.op=getPublishedSources&source_name=gmt-mail&exact_match=true"
+}
+
+# add_debian DIR: write the packaging into DIR/debian from HEAD (never the working
+# tree, so no uncommitted or ignored file is uploaded) and fill in the tag's commit
+# and date, as the release archives have them (Launchpad builds without .git).
+add_debian() {
+    local commit date
+    commit=$(git -C "$SRC_DIR" rev-parse --short=7 "$TAG^{commit}") || return 1
+    date=$(git -C "$SRC_DIR" log -1 --format=%cs "$TAG^{commit}") || return 1
+    mkdir "$1/debian" || return 1
+    git -C "$SRC_DIR" archive HEAD:ppa/debian | tar -xf - -C "$1/debian" || return 1
+    git -C "$SRC_DIR" archive HEAD:scripts deb-layout.sh install-docs.sh | tar -xf - -C "$1/debian" || return 1
+    sed -i -e "s/@COMMIT@/$commit/" -e "s/@BUILD_DATE@/$date/" "$1/debian/rules"
 }
 
 # The functions above are sourced by build-ppa_test.sh; stop here in that case.
@@ -79,8 +92,10 @@ else
 fi
 RELEASES=("${TODO[@]}")
 
-# Verify the git tag exists
 cd "$SRC_DIR"
+# The packaging comes from HEAD; a dirty tree means it is not what gets uploaded.
+[ -z "$(git status --porcelain)" ] || { echo "Error: working tree not clean; commit or stash first" >&2; exit 1; }
+# Verify the git tag exists
 if ! git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "Error: git tag '$TAG' not found. Create it first:"
     echo "  git tag -s $TAG -m '$TAG'"
@@ -123,11 +138,8 @@ for RELEASE in "${RELEASES[@]}"; do
     cd "$BUILD_DIR"
     rm -rf "gmt-mail-${VERSION}-${RELEASE}"
     cp -a "gmt-mail-${VERSION}" "gmt-mail-${VERSION}-${RELEASE}"
+    add_debian "gmt-mail-${VERSION}-${RELEASE}"
     cd "gmt-mail-${VERSION}-${RELEASE}"
-
-    # Add PPA-specific debian dir
-    cp -a "$SCRIPT_DIR/debian" debian
-    cp "$SRC_DIR/scripts/deb-layout.sh" "$SRC_DIR/scripts/install-docs.sh" debian/
 
     # Generate changelog from git log between previous tag and current tag
     # Find previous released tag (not just any tag). Drop any ambient

@@ -57,8 +57,10 @@ DIST_ASSETS  := $(foreach t,$(DIST_TARGETS),gmt-mail-$(VERSION)-$(subst /,-,$(t)
 	$(DIST_DEBS) SHA256SUMS SHA256SUMS.asc
 DIST_FILES   := $(addprefix $(DIST_DIR)/,$(DIST_ASSETS))
 MAN_DATE := $(or $(shell git log -1 --format=%cs $(TAG) 2>/dev/null),$(DATE))
+# The tag's commit, as `make dist` embeds it (it builds HEAD == TAG).
+TAG_COMMIT := $(or $(shell git rev-parse -q --verify --short=7 '$(TAG)^{commit}' 2>/dev/null),unknown)
 
-.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man doc-version test-release test-pkg image push-image test-image
+.PHONY: all build test vet lint fmt install clean srpm vendor tag release dist test-dist copr ppa brew test-ppa test-copr test-brew gen-spec man test-man doc-version test-release test-pkg image push-image test-image print-release-go
 
 all: test lint build
 
@@ -97,8 +99,6 @@ tag:
 		echo "tag: pushed $(TAG)"; \
 	fi
 
-PREV_RELEASE := $(shell $(GH) release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null)
-
 # Creates the GitHub release with the dist archives; an existing release that lacks
 # any of them (none yet, or an interrupted upload) gets all of them (re)uploaded,
 # and a draft left by an interrupted `gh release create` is published. A stable
@@ -122,10 +122,11 @@ release: tag
 		if [ "$$($(GH) release view $(TAG) --json isDraft --jq .isDraft)" = true ]; then \
 			$(GH) release edit $(TAG) --draft=false && echo "release: published draft $(TAG)"; \
 		fi; \
-	elif [ -n "$(PREV_RELEASE)" ]; then \
+	elif prev=$$($(GH) release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName') \
+			|| { echo "release: cannot list the releases of GitHub" >&2; exit 1; }; [ -n "$$prev" ]; then \
 		$(RELEASE_DIST) && \
-		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes --notes-start-tag $(PREV_RELEASE) $(RELEASE_FLAGS) $(DIST_FILES) \
-			&& echo "release: created $(TAG) (diff from $(PREV_RELEASE))" $(RELEASE_PUSH); \
+		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes --notes-start-tag $$prev $(RELEASE_FLAGS) $(DIST_FILES) \
+			&& echo "release: created $(TAG) (diff from $$prev)" $(RELEASE_PUSH); \
 	else \
 		$(RELEASE_DIST) && \
 		$(GH) release create $(TAG) --title "$(TAG)" --generate-notes $(RELEASE_FLAGS) $(DIST_FILES) \
@@ -171,23 +172,24 @@ test-dist:
 	scripts/deb_test.sh
 	scripts/install-docs_test.sh
 
-srpm: vendor gen-spec
+# The source is the tree of $(TAG) with the vendored modules, never the working
+# tree: untracked files (.env, real configs) must not reach the public COPR.
+srpm: gen-spec
 	mkdir -p $(RPMBUILD_DIR)/{SOURCES,SPECS,SRPMS}
-	tar czf $(TARBALL) --transform 's,^\.,gmt-mail-$(VERSION),' \
-		--exclude='./.git' --exclude='./gmt-mail.spec' \
-		--exclude='./ai' --exclude='./.claude' \
-		--exclude='./$(BINARY)' --exclude='./ppa' .
+	scripts/src-tarball.sh $(TAG) $(TARBALL)
 	rpmbuild -bs $(SPEC_OUT) --define "_topdir $(RPMBUILD_DIR)"
 	@echo "SRPM: $$(ls $(RPMBUILD_DIR)/SRPMS/gmt-mail-$(VERSION)-*.src.rpm)"
 
 # Generate the final spec into the build dir from the tracked template,
-# substituting @VERSION@ and splicing in the git-derived %changelog. The tracked
-# gmt-mail.spec is never modified, so it can never drift or dirty the tree.
+# substituting @VERSION@, @COMMIT@ and @BUILD_DATE@ (the tag's commit and date, as
+# in the release archives: COPR builds without .git) and splicing in the
+# git-derived %changelog. The tracked gmt-mail.spec is never modified, so it can
+# never drift or dirty the tree.
 gen-spec:
 	@mkdir -p $(RPMBUILD_DIR)/SPECS
 	@./scripts/gen-rpm-changelog.sh > $(RPMBUILD_DIR)/rpm-changelog.tmp
-	@awk -v ver='$(VERSION)' -v clog=$(RPMBUILD_DIR)/rpm-changelog.tmp \
-		'{ gsub(/@VERSION@/, ver) } /^@CHANGELOG@$$/ { while ((getline l < clog) > 0) print l; next } { print }' \
+	@awk -v ver='$(VERSION)' -v commit='$(TAG_COMMIT)' -v date='$(MAN_DATE)' -v clog=$(RPMBUILD_DIR)/rpm-changelog.tmp \
+		'{ gsub(/@VERSION@/, ver); gsub(/@COMMIT@/, commit); gsub(/@BUILD_DATE@/, date) } /^@CHANGELOG@$$/ { while ((getline l < clog) > 0) print l; next } { print }' \
 		$(SPEC_TEMPLATE) > $(SPEC_OUT)
 	@rm -f $(RPMBUILD_DIR)/rpm-changelog.tmp
 	@echo "spec: generated $(SPEC_OUT) (version $(VERSION))"
@@ -211,7 +213,7 @@ test-copr:
 
 # Uploads only releases that don't have this version yet; force a rebuild of an
 # already-uploaded version with: make ppa PPA_REV=2
-ppa: tag vendor
+ppa: tag
 	ppa/build-ppa.sh $(PPA_REV)
 
 test-ppa:
@@ -225,6 +227,10 @@ brew:
 
 test-brew:
 	scripts/brew-update_test.sh
+
+# For CI: it builds with the release toolchain.
+print-release-go:
+	@echo $(RELEASE_GO)
 
 test-release:
 	scripts/release-check_test.sh
