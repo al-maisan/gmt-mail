@@ -28,11 +28,14 @@ git init -q "$TMP/r" && mkdir "$TMP/r/scripts" && cp "$SRC"/scripts/release-{che
 git -C "$TMP/r" add . && git -C "$TMP/r" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm init
 git -C "$TMP/r" tag v1.2.3
 rc() { "$TMP/r/scripts/release-check.sh" "$@" 2>&1; }
-check "needs a tag" "release-check: usage: $TMP/r/scripts/release-check.sh TAG" "$(rc)"
+check "needs a tag" "release-check: usage: $TMP/r/scripts/release-check.sh [pre|post] TAG" "$(rc)"
+check "rejects an unknown phase" "release-check: usage: $TMP/r/scripts/release-check.sh [pre|post] TAG" "$(rc later v1.2.3)"
 check "rejects a bad tag" "release-check: tag 'v1.2' is not vMAJOR.MINOR.PATCH[-PRE]" "$(rc v1.2)"
 check "rejects an unknown tag" "release-check: HEAD is not v9.9.9; run: git checkout v9.9.9" "$(rc v9.9.9)"
 check "rejects an unsigned tag" "release-check: tag 'v1.2.3' is not signed by $K" "$(rc v1.2.3)"
+check "pre: rejects an unsigned tag" "release-check: tag 'v1.2.3' is not signed by $K" "$(rc pre v1.2.3)"
 touch "$TMP/r/x"
 check "rejects a dirty tree" "release-check: working tree not clean" "$(rc v1.2.3)"
+check "pre: rejects a dirty tree" "release-check: working tree not clean" "$(rc pre v1.2.3)"
 
 exit "$fail"
