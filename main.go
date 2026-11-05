@@ -110,8 +110,11 @@ func main() {
 	doDryRun := flag.Bool("dry-run", false, "show what would be done but execute no action")
 	doValidate := flag.Bool("validate", false, "validate config and template without sending")
 	templatePath := flag.String("template-path", "", "path to the template file")
+	recipientsPath := flag.String("recipients-path", "", "path to a CSV file with the recipients (the config file then has no [[recipients]])")
+	csvAttachments := flag.Bool("csv-attachments", false, "allow the attachments and attachments_extra columns in the -recipients-path CSV")
 	doSampleConfig := flag.Bool("sample-config", false, "output sample configuration to stdout")
 	doSampleTemplate := flag.Bool("sample-template", false, "output sample template to stdout")
+	doSampleCSV := flag.Bool("sample-csv", false, "output sample recipients CSV to stdout")
 	doVersion := flag.Bool("version", false, "print version and exit")
 	delay := flag.Duration("delay", 0, "delay between emails (e.g., 1s, 500ms)")
 	retries := flag.Int("retries", 1, "max retry attempts per failed send")
@@ -120,7 +123,7 @@ func main() {
 
 	flag.Parse()
 
-	if actionFlagCount(*doVersion, *doSampleConfig, *doSampleTemplate, *doValidate, *doDryRun) > 1 {
+	if actionFlagCount(*doVersion, *doSampleConfig, *doSampleTemplate, *doSampleCSV, *doValidate, *doDryRun) > 1 {
 		log.Printf("Warning: multiple action flags set; only the first in precedence order takes effect")
 	}
 
@@ -134,6 +137,10 @@ func main() {
 	}
 	if *doSampleTemplate {
 		fmt.Println(config.SampleTemplate())
+		os.Exit(exitOK)
+	}
+	if *doSampleCSV {
+		fmt.Println(config.SampleCSV())
 		os.Exit(exitOK)
 	}
 
@@ -156,7 +163,7 @@ func main() {
 		os.Exit(exitUsageError)
 	}
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := loadConfig(*configPath, *recipientsPath, *csvAttachments)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		os.Exit(exitConfigError)
@@ -228,15 +235,33 @@ func actionFlagCount(flags ...bool) int {
 	return n
 }
 
-func loadConfig(path string) (config.MailConfig, error) {
+// loadConfig reads the config file and, if recipientsPath is set, takes the
+// recipients from that CSV file instead of [[recipients]]; csvAttachments
+// allows its attachment columns.
+func loadConfig(path, recipientsPath string, csvAttachments bool) (config.MailConfig, error) {
 	bs, err := os.ReadFile(path)
 	if err != nil {
 		return config.MailConfig{}, fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
 
-	cfg, err := config.Parse(bs)
+	parse := config.Parse
+	if recipientsPath != "" {
+		parse = config.ParseGeneral
+	}
+	cfg, err := parse(bs)
 	if err != nil {
 		return config.MailConfig{}, fmt.Errorf("invalid config file %q: %w", path, err)
+	}
+	if recipientsPath == "" {
+		return cfg, nil
+	}
+
+	bs, err = os.ReadFile(recipientsPath)
+	if err != nil {
+		return config.MailConfig{}, fmt.Errorf("failed to read recipients file %q: %w", recipientsPath, err)
+	}
+	if cfg.Recipients, err = config.ParseCSV(recipientsPath, bs, csvAttachments); err != nil {
+		return config.MailConfig{}, fmt.Errorf("invalid recipients file: %w", err)
 	}
 
 	return cfg, nil

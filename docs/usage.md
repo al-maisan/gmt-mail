@@ -29,7 +29,7 @@ TLS is enforced, so credentials are never sent in plaintext. Port 465 uses impli
 
 ## Configuration file
 
-The config file uses [TOML](https://toml.io/) with a `[general]` section and one or more `[[recipients]]` entries. Unknown keys are rejected and all addresses are checked when the file is parsed, so `-validate` catches typos before anything is sent.
+The config file uses [TOML](https://toml.io/) with a `[general]` section and one or more `[[recipients]]` entries, or the recipients come from a [CSV file](#recipients-from-a-csv-file). Unknown keys are rejected and all addresses are checked when the file is parsed, so `-validate` catches typos before anything is sent.
 
 ### `[general]`
 
@@ -79,6 +79,28 @@ last = "Took"
 data = { ROLE = "Knight" }
 cc = ["merry@shire.org"]
 ```
+
+### Recipients from a CSV file
+
+`-recipients-path people.csv` reads the recipients from a CSV file, e.g. one exported from a spreadsheet. The config file then keeps only `[general]`: `[[recipients]]` is an error. `gmt-mail -sample-csv` prints an example.
+
+The file is UTF-8 (a leading BOM is ignored), comma-separated, with quoted fields as in RFC 4180. The first row names the columns, in any order and case:
+
+- `email`, `first` (both required) and `last`: as in `[[recipients]]`.
+- `cc`, `cc_extra`, `attachments`, `attachments_extra`: several values separated by `;`, e.g. `a@x.org; b@x.org`. An empty cell means not set. The attachment columns are rejected unless you pass `-csv-attachments`: a CSV from someone else could otherwise attach any of your files (e.g. `~/.ssh/id_rsa`) to a mail for any address. Attachments in `[general]` are not affected.
+- Every other column is a custom key for `%KEY%` (see below), e.g. a column `role` fills `%ROLE%`.
+
+Each row gets the same checks as a `[[recipients]]` entry. A duplicate column name, a row with the wrong number of fields, an empty file or a file without rows is an error. Errors name the file and line, e.g. `people.csv:3: recipient "sam@shire.org": 'first' must not be blank`. Check a CSV from someone else with `-dry-run` before sending: it shows every recipient, Cc and attachment.
+
+The recipients of the example above as CSV:
+
+```csv
+email,first,last,role,cc
+sam@shire.org,Samwise,Gamgee,Gardener,
+pippin@shire.org,Peregrin,Took,Knight,merry@shire.org
+```
+
+    $ gmt-mail -dry-run -config-path general.toml -recipients-path people.csv -template-path template.eml
 
 ## Template variables
 
@@ -148,16 +170,22 @@ Progress is shown as `[1/N]` for each message. Temporary send failures are retri
 
       -config-path string
             path to the config file
+      -csv-attachments
+            allow the attachments and attachments_extra columns in the -recipients-path CSV
       -delay duration
             delay between emails (e.g., 1s, 500ms)
       -dry-run
             show what would be done but execute no action
+      -recipients-path string
+            path to a CSV file with the recipients (the config file then has no [[recipients]])
       -retries int
             max retry attempts per failed send (default 1)
       -retry-delay duration
             backoff between retries (default 2s)
       -sample-config
             output sample configuration to stdout
+      -sample-csv
+            output sample recipients CSV to stdout
       -sample-template
             output sample template to stdout
       -template-path string

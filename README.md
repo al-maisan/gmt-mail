@@ -85,6 +85,8 @@ Create sample files to edit:
     $ gmt-mail -sample-config > config.toml
     $ gmt-mail -sample-template > template.eml
 
+Keep the recipients in a spreadsheet instead? Export it as CSV and pass `-recipients-path people.csv` (`gmt-mail -sample-csv` prints an example); see [Recipients from a CSV file](docs/usage.md#recipients-from-a-csv-file).
+
 Put your SMTP account in a `.env` file in the same directory (Gmail needs an [App Password](https://myaccount.google.com/apppasswords); [`.env.example`](.env.example) has other providers):
 
     SMTP_HOST=smtp.gmail.com

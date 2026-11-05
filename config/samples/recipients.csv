@@ -1,0 +1,6 @@
+email,first,last,org,title,cc,cc_extra
+jd@example.com,John,Doe Jr.,EFF,PhD,bl@kf.io;info@ex.org,
+daisy@example.com,Daisy,Lila,NASA,Dr.,,inc@gg.org
+ab@example.com,Alice,Brown,MIT,,,
+mm@gmail.com,Mickey,Mouse,Disney,,,
+ef@example.com,Eve,Foster,CERN,Prof.,,
