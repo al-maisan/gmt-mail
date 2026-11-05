@@ -55,6 +55,9 @@ or
 .B \-dry\-run
 Preview all emails on standard output without connecting to an SMTP server.
 SMTP credentials are not required in this mode.
+As with
+.BR \-validate ,
+the attachment files must exist and be readable.
 .TP
 .B \-validate
 Parse the configuration and template files, check for errors and unresolved
@@ -121,6 +124,8 @@ Required.
 .TP
 .B cc
 List of CC addresses. Optional.
+If the server rejects any one address of a message (To or a Cc), that
+message is sent to nobody and counts as failed (exit status 4).
 .TP
 .B reply_to
 Reply-To address. Optional.
@@ -237,6 +242,8 @@ Email address used for SMTP authentication.
 .TP
 .B SENDER_PASSWORD
 Password for SMTP authentication.
+Only SMTP AUTH PLAIN (over TLS) is used; a server that does not offer it
+fails the connection (exit status 3).
 .PP
 All four variables are required when sending email.
 They are not required for
